@@ -1,0 +1,95 @@
+ARQUIVO EMAILS — Prospectiva, S.A.
+===================================
+
+Ferramenta interna de arquivo de correspondencia electronica por
+projecto. Liga ao Outlook classico, grava os emails seleccionados como
+ficheiros .msg com nome normalizado numa pasta de projecto, e mantem um
+indice pesquisavel por projecto (_indice_emails.csv — abre no Excel).
+Mesmo padrao tecnico do Conversor PDF/A (porta 8321) e do Renumeracao
+(porta 8322); o Arquivo Emails usa a porta 8323 — podem coexistir.
+
+COMO FUNCIONA
+-------------
+  1) Arquivo e projecto: define a pasta raiz do arquivo — local para
+     testes (ex.: C:\Arquivo_Emails) ou de rede para uso partilhado
+     pela equipa (ex.: \\servidor\DEP\Arquivo_Emails). Cada projecto e
+     uma subpasta da raiz (ex.: P3191_ANA); pode criar novos projectos
+     na propria aplicacao. A configuracao fica guardada por utilizador
+     em %USERPROFILE%\.arquivo_emails.json.
+  2) Emails no Outlook: le as pastas de correio do Outlook, lista os
+     emails (com filtro por remetente/assunto), e arquiva os
+     seleccionados no projecto escolhido.
+  3) Pesquisar no arquivo: pesquisa nos indices de todos os projectos
+     (ou de um so) e abre o .msg directamente no Outlook.
+
+NOME NORMALIZADO
+----------------
+  AAAA-MM-DD_Remetente_Assunto.msg
+  ex.: 2026-08-24_JoaoSilva_Aprovacao_pecas_desenhadas.msg
+  (sem acentos nem caracteres invalidos; prefixos RE:/FW:/ENC:
+  removidos; ordena cronologicamente no Explorador; colisoes de nome
+  ganham sufixo _2, _3, ...)
+
+INDICE (_indice_emails.csv, um por projecto)
+--------------------------------------------
+  DataEmail;Remetente;Destinatarios;Assunto;Anexos;Ficheiro;Projecto;
+  ArquivadoPor;DataArquivo;MessageID
+  * separado por ";", codificacao UTF-8 com BOM — abre no Excel PT.
+  * o MessageID identifica o email de forma unica: por defeito, um
+    email ja registado no indice do projecto e ignorado ao arquivar
+    de novo (evita duplicados quando varios colegas arquivam a mesma
+    mensagem). A opcao "Permitir repetidos" forca nova copia.
+  * em rede, a escrita no indice repete com espera se o ficheiro
+    estiver momentaneamente bloqueado (ex.: aberto no Excel de um
+    colega). NAO deixar o indice aberto no Excel enquanto se arquiva.
+
+SALVAGUARDAS
+------------
+  * O programa NAO apaga nem move nada no Outlook — apenas grava
+    copias .msg no arquivo.
+  * Os emails arquivados ficam marcados no Outlook com a categoria
+    "Arquivado DEP" e assinalados na lista.
+  * "Abrir" so abre ficheiros dentro da pasta raiz do arquivo.
+
+REQUISITOS
+----------
+  * Windows com Outlook CLASSICO instalado e configurado. O "Novo
+    Outlook" NAO suporta a ligacao COM utilizada — se necessario,
+    desactivar o interruptor "Experimentar o novo Outlook".
+  * Alternativa sem lista do Outlook: botao "Arquivar ficheiros .msg"
+    (na janela nativa) arquiva ficheiros .msg ja guardados no disco.
+
+ESTRUTURA DA PASTA
+------------------
+  app.py              servidor web local (Flask), porta 8323
+  engine.py           motor: Outlook COM, nomes normalizados, indice
+  launcher.py         arranque como janela nativa (pywebview)
+  iniciar.bat         arranque rapido em modo browser (instala dependencias)
+  criar_exe.bat       compila dist\ArquivoEmails.exe (PyInstaller)
+  preparar_envio.bat  prepara prog\ArquivoEmails.zip para os colegas
+  requirements.txt    dependencias Python
+  templates/          interface (index.html)
+  resources/          logotipo (logo.png) e icone (icone.ico)
+  prog/LEIA-ME.txt    instrucoes simplificadas para os colegas
+
+COMO EXECUTAR (desenvolvimento)
+-------------------------------
+  1) Duplo clique em iniciar.bat
+     (ou:  python app.py  ->  abre http://localhost:8323)
+  2) Em modo janela nativa:  python launcher.py
+     (requer:  python -m pip install pywebview)
+
+EMPACOTAMENTO E DISTRIBUICAO
+----------------------------
+  1) criar_exe.bat       ->  dist\ArquivoEmails.exe
+  2) preparar_envio.bat  ->  prog\ArquivoEmails.zip (exe + LEIA-ME)
+  Cada colega corre o .exe localmente e aponta a MESMA pasta raiz de
+  rede — todos veem o mesmo arquivo e os mesmos indices.
+
+ESTADO (2026-08-24)
+-------------------
+  * Componentes sem Outlook (nomes normalizados, indice, pesquisa,
+    interface) testados automaticamente em ambiente de desenvolvimento.
+  * A ligacao ao Outlook (COM) so e testavel no Windows: validar no
+    primeiro arranque — ler pastas, listar, arquivar 2-3 emails de
+    teste e conferir o indice no Excel.

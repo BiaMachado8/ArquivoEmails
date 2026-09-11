@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# Build and distribution output
+build/
+dist/
+*.spec
+prog/ArquivoEmails/
+prog/*.zip
+
+# Local application data and archived emails
+.arquivo_emails.json
+_indice_emails.csv
+*.msg
+
+# Local tooling and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

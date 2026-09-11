@@ -1,0 +1,41 @@
+ARQUIVO EMAILS — Prospectiva, S.A.
+===================================
+Ferramenta interna para arquivar emails do Outlook por projecto, com
+nome normalizado e indice pesquisavel comum a equipa.
+
+INSTALACAO
+----------
+Nao ha instalacao: copie a pasta para o seu computador (ex.: Ambiente
+de Trabalho) e faca duplo clique em ArquivoEmails.exe.
+No primeiro arranque o Windows/antivirus pode pedir confirmacao —
+trata-se de uma ferramenta interna, pode autorizar ("Executar mesmo
+assim" / "Mais informacoes").
+
+REQUISITOS
+----------
+  * Outlook CLASSICO instalado e aberto. O "Novo Outlook" nao e
+    suportado — se necessario, desactive o interruptor "Experimentar
+    o novo Outlook" no canto superior direito do Outlook.
+
+PRIMEIROS PASSOS
+----------------
+  1) Seccao 1 — indique a pasta raiz do arquivo definida pela equipa
+     (pasta de rede comum, ex.: \\servidor\DEP\Arquivo_Emails) e
+     carregue em "Gravar e ler projectos". Escolha o projecto.
+  2) Seccao 2 — "Ler pastas do Outlook", escolha a pasta (ex.:
+     A Receber), "Listar emails", seleccione e carregue em
+     "Arquivar seleccionados no projecto".
+  3) Seccao 3 — pesquise no arquivo e abra os emails com "Abrir".
+
+NOTAS
+-----
+  * O programa NAO apaga nem move nada no Outlook — grava copias .msg
+    na pasta do projecto, com nome AAAA-MM-DD_Remetente_Assunto.msg.
+  * Os emails ja arquivados ficam com a categoria "Arquivado DEP" no
+    Outlook e sao ignorados se tentar arquiva-los de novo (evita
+    duplicados entre colegas).
+  * O indice _indice_emails.csv (na pasta de cada projecto) abre no
+    Excel — mas nao o deixe aberto enquanto arquiva, para nao
+    bloquear a escrita.
+
+Duvidas: contactar a Eng. Beatriz Machado (DEP).

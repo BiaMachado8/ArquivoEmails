@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arquivo Emails — Prospectiva</title>
+<style>
+  :root {
+    --azul: #1F4E79;
+    --azul-claro: #D6E4F0;
+    --borda: #B4C6E7;
+    --ok: #2E7D32;
+    --erro: #B71C1C;
+    --ambar: #8a6d1a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Segoe UI", Arial, sans-serif; background: #f5f7fa; color: #222; }
+  header { background: var(--azul); color: #fff; padding: 14px 32px; display: flex; align-items: center; gap: 18px; }
+  header img { height: 48px; display: none; background: #fff; border-radius: 8px; padding: 5px 9px; }
+  header h1 { font-size: 20px; font-weight: 600; }
+  header p { font-size: 13px; opacity: .85; margin-top: 2px; }
+  main { max-width: 1080px; margin: 24px auto; padding: 0 16px; }
+
+  .card { background: #fff; border: 1px solid var(--borda); border-radius: 6px; margin-bottom: 18px; }
+  .card h2 { background: var(--azul-claro); color: var(--azul); font-size: 14px; padding: 10px 16px; border-bottom: 1px solid var(--borda); display: flex; align-items: center; }
+  .card .body { padding: 16px; }
+
+  .info { display: inline-flex; align-items: center; justify-content: center;
+          width: 16px; height: 16px; border-radius: 50%; background: #c0392b; color: #fff;
+          font-size: 11px; font-weight: 700; font-style: normal; cursor: help;
+          position: relative; margin-left: 8px; flex: none; }
+  .info::after { content: attr(data-tip); position: absolute; left: 24px; top: 50%;
+          transform: translateY(-50%); background: #333; color: #fff; padding: 8px 12px;
+          border-radius: 4px; font-size: 12px; font-weight: 400; width: 380px; z-index: 20;
+          display: none; white-space: normal; text-align: left; line-height: 1.45;
+          box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+  .info:hover::after { display: block; }
+  .info::before { content: "i"; font-family: Georgia, serif; }
+
+  .fld { position: relative; border: 1px solid var(--borda); border-radius: 6px;
+         padding: 12px 12px 8px; background: #fff; }
+  .fld > label { position: absolute; top: -8px; left: 10px; background: #fff; padding: 0 5px;
+                 font-size: 11px; color: var(--azul); font-weight: 600; white-space: nowrap; }
+  .fld input, .fld select { border: none; outline: none; font-size: 14px; width: 100%;
+                            background: transparent; color: #222; }
+  .fld.caminho { flex: 1; min-width: 300px; }
+
+  .btn { background: var(--azul); color: #fff; border: 1px solid var(--azul); border-radius: 4px;
+         padding: 10px 16px; font-size: 13.5px; font-weight: 600; cursor: pointer; text-align: center; }
+  .btn:hover { filter: brightness(1.15); }
+  .btn:disabled { background: #9ab; border-color: #9ab; cursor: not-allowed; }
+  .btn.sec { background: #fff; color: var(--azul); }
+  .btn.sec:hover { background: var(--azul-claro); filter: none; }
+
+  .oprow { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .muted { color: #667; font-size: 12px; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  thead th { background: var(--azul-claro); color: var(--azul); text-align: left;
+             padding: 7px 9px; border: 1px solid var(--borda); position: sticky; top: 0; }
+  tbody td { padding: 6px 9px; border: 1px solid var(--borda); vertical-align: top; }
+  tbody tr:nth-child(even) { background: #f2f7fc; }
+  tbody tr.ja td { color: #889; }
+  .tag { display: inline-block; background: var(--azul-claro); color: var(--azul);
+         border-radius: 3px; padding: 1px 6px; font-size: 11px; font-weight: 600; }
+  .tbl-wrap { max-height: 420px; overflow: auto; border: 1px solid var(--borda); border-radius: 4px; }
+
+  #spinner { display: none; align-items: center; gap: 10px; padding: 10px 0 0; color: var(--azul); font-size: 14px; }
+  .dot { width: 14px; height: 14px; border: 3px solid var(--azul-claro); border-top-color: var(--azul); border-radius: 50%; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  footer { text-align: center; color: #99a; font-size: 11px; padding: 20px; }
+  .toolwarn { background: #fdecea; border: 1px solid #f0c8c8; color: var(--erro); padding: 10px 14px; border-radius: 4px; margin-bottom: 16px; font-size: 13px; }
+  #resultado { display: none; border-radius: 4px; padding: 12px 14px; font-size: 13px; margin: 10px 0 0; }
+  #resultado.ok { background: #e5f2e6; border: 1px solid #b7d8b9; color: #1d4d20; }
+  #resultado.erro { background: #fbe7e7; border: 1px solid #f0c8c8; color: var(--erro); }
+  #resultado .aviso { color: var(--ambar); margin-top: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <img id="logo-img" src="/logo" alt="Arquivo Emails" onload="this.style.display='block'">
+  <div>
+    <h1>Arquivo Emails</h1>
+    <p>Arquivo de correspondência electrónica por projecto — Outlook · .msg · índice pesquisável</p>
+  </div>
+</header>
+<main>
+  {% set missing = [] %}
+  {% for k, v in tools.items() %}{% if not v %}{% set _ = missing.append(k) %}{% endif %}{% endfor %}
+  {% if missing %}
+  <div class="toolwarn">
+    <b>Dependências em falta:</b> {{ missing | join(', ') }}. Correr:
+    <code>python -m pip install -r requirements.txt</code>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <h2>1 · Arquivo e projecto
+      <i class="info" data-tip="A pasta raiz é onde vive o arquivo: para testes pode ser uma pasta local (ex.: C:\Arquivo_Emails); para uso partilhado pela equipa, uma pasta de rede (ex.: \\servidor\DEP\Arquivo_Emails). Cada projecto é uma subpasta da raiz, com os emails arquivados e um índice (_indice_emails.csv) que abre no Excel. A configuração fica guardada por utilizador."></i>
+    </h2>
+    <div class="body">
+      <div class="oprow" style="margin-bottom:0;">
+        <div class="fld caminho">
+          <label>Pasta raiz do arquivo (local ou de rede)</label>
+          <input type="text" id="pasta-raiz" value="{{ config.pasta_raiz }}" placeholder="ex.: C:\Arquivo_Emails ou \\servidor\DEP\Arquivo_Emails">
+        </div>
+        <button class="btn sec" id="btn-pick-raiz" style="display:none;">Escolher pasta…</button>
+        <button class="btn" id="btn-gravar-raiz">Gravar e ler projectos</button>
+        <div class="fld" style="width:260px;">
+          <label>Projecto</label>
+          <select id="projecto"><option value="">— escolher —</option></select>
+        </div>
+        <button class="btn sec" id="btn-novo-projecto" title="Cria uma nova subpasta de projecto na pasta raiz do arquivo.">Novo projecto…</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2 · Emails no Outlook
+      <i class="info" data-tip="Requer o Outlook clássico aberto (a ligação COM não funciona com o «Novo Outlook»). Carregue em «Ler pastas do Outlook», escolha a pasta (ex.: A Receber), liste os emails e seleccione os que quer arquivar. Os emails já arquivados ficam marcados no Outlook com a categoria «Arquivado DEP» e aparecem assinalados na lista. O arquivo NÃO apaga nem move nada no Outlook — apenas grava cópias .msg no projecto."></i>
+    </h2>
+    <div class="body">
+      <div class="oprow">
+        <button class="btn" id="btn-pastas">Ler pastas do Outlook</button>
+        <div class="fld" style="flex:1; min-width:280px;">
+          <label>Pasta do Outlook</label>
+          <select id="pasta-outlook"><option value="">— carregar primeiro as pastas —</option></select>
+        </div>
+        <div class="fld" style="width:200px;">
+          <label>Filtro (remetente/assunto)</label>
+          <input type="text" id="filtro" placeholder="opcional">
+        </div>
+        <div class="fld" style="width:110px;">
+          <label>Máx. emails</label>
+          <input type="number" id="limite" value="50" min="1" max="500">
+        </div>
+        <button class="btn sec" id="btn-emails">Listar emails</button>
+      </div>
+
+      <div class="tbl-wrap" id="tbl-wrap" style="display:none;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:30px;"><input type="checkbox" id="chk-todos" title="Seleccionar todos"></th>
+              <th style="width:120px;">Data</th>
+              <th style="width:180px;">Remetente</th>
+              <th>Assunto</th>
+              <th style="width:60px;">Anexos</th>
+              <th style="width:90px;">Estado</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-emails"></tbody>
+        </table>
+      </div>
+      <div class="muted" id="nota-lista" style="margin-top:8px; display:none;"></div>
+
+      <div class="oprow" style="margin-top:14px;">
+        <button class="btn" id="btn-arquivar" style="min-width:260px;">Arquivar seleccionados no projecto</button>
+        <button class="btn sec" id="btn-msg-files" style="display:none;" title="Alternativa sem lista: escolher ficheiros .msg já guardados no disco (ex.: arrastados do Outlook para uma pasta) e arquivá-los no projecto com nome normalizado.">Arquivar ficheiros .msg…</button>
+        <label style="font-size:13px; color:var(--azul); font-weight:600; display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <input type="checkbox" id="chk-repetidos" style="width:15px; height:15px;">
+          Permitir repetidos
+        </label>
+        <i class="info" data-tip="Por defeito, um email já registado no índice do projecto (identificado pelo Message-ID) é ignorado, para evitar duplicados quando vários colegas arquivam a mesma mensagem. Ligue esta opção apenas se quiser mesmo gravar nova cópia."></i>
+      </div>
+
+      <div id="spinner"><div class="dot"></div><span id="spinner-text">A processar…</span></div>
+      <div id="resultado"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>3 · Pesquisar no arquivo
+      <i class="info" data-tip="Pesquisa nos índices dos projectos (data, remetente, destinatários, assunto e nome do ficheiro). Com «Todos os projectos», percorre o arquivo inteiro. O botão «Abrir» abre o .msg no Outlook; «Pasta» abre a pasta do projecto no Explorador."></i>
+    </h2>
+    <div class="body">
+      <div class="oprow">
+        <div class="fld" style="flex:1; min-width:260px;">
+          <label>Texto a pesquisar</label>
+          <input type="text" id="termo" placeholder="ex.: aprovação, nome do remetente, P3191…">
+        </div>
+        <div class="fld" style="width:260px;">
+          <label>Âmbito</label>
+          <select id="ambito"><option value="">Todos os projectos</option></select>
+        </div>
+        <button class="btn" id="btn-pesquisar">Pesquisar</button>
+        <button class="btn sec" id="btn-abrir-projecto" title="Abre no Explorador a pasta do projecto seleccionado na secção 1.">Abrir pasta do projecto</button>
+      </div>
+      <div class="tbl-wrap" id="res-wrap" style="display:none;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:110px;">Projecto</th>
+              <th style="width:120px;">Data</th>
+              <th style="width:160px;">Remetente</th>
+              <th>Assunto</th>
+              <th style="width:110px;">Arquivado por</th>
+              <th style="width:130px;">Abrir</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-res"></tbody>
+        </table>
+      </div>
+      <div class="muted" id="nota-res" style="margin-top:8px; display:none;"></div>
+    </div>
+  </div>
+</main>
+<footer>Prospectiva, S.A. — ferramenta interna · Outlook clássico (COM) · índice por projecto em CSV (abre no Excel) · porta 8323</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+let emJanela = false;      // true quando corre na janela nativa (pywebview)
+let emailsListados = [];   // última listagem (para ler as selecções)
+
+function setBusy(b, text) {
+  $('spinner').style.display = b ? 'flex' : 'none';
+  $('spinner-text').textContent = text || 'A processar…';
+  ['btn-pastas','btn-emails','btn-arquivar','btn-pesquisar','btn-gravar-raiz']
+    .forEach(id => $(id).disabled = b);
+}
+
+function showResult(ok, html) {
+  const el = $('resultado');
+  el.className = ok ? 'ok' : 'erro';
+  el.style.display = 'block';
+  el.innerHTML = html;
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function post(url, data) {
+  const fd = new FormData();
+  for (const [k, v] of Object.entries(data || {})) fd.append(k, v);
+  const r = await fetch(url, { method: 'POST', body: fd });
+  return r.json();
+}
+
+/* ------------------------------------------------ 1 · arquivo e projectos */
+function preencherProjectos(lista) {
+  for (const sel of [$('projecto'), $('ambito')]) {
+    const manter = sel.id === 'ambito';
+    sel.innerHTML = manter ? '<option value="">Todos os projectos</option>'
+                           : '<option value="">— escolher —</option>';
+    lista.forEach(p => {
+      const o = document.createElement('option');
+      o.value = o.textContent = p;
+      sel.appendChild(o);
+    });
+  }
+}
+
+async function gravarRaizELerProjectos(silencioso) {
+  const pasta = $('pasta-raiz').value.trim();
+  if (!pasta) { if (!silencioso) alert('Indique a pasta raiz do arquivo.'); return; }
+  setBusy(true, 'A ler projectos…');
+  try {
+    const cfg = await post('/api/config', { pasta_raiz: pasta });
+    if (cfg.error) { showResult(false, cfg.error); return; }
+    const data = await post('/api/projectos', {});
+    if (data.error) { showResult(false, data.error); return; }
+    preencherProjectos(data.projectos);
+    if (!silencioso)
+      showResult(true, `Pasta raiz gravada — ${data.projectos.length} projecto(s) encontrados.`);
+  } catch (e) {
+    showResult(false, 'Erro de comunicação com a aplicação: ' + e);
+  } finally { setBusy(false); }
+}
+$('btn-gravar-raiz').addEventListener('click', () => gravarRaizELerProjectos(false));
+
+$('btn-novo-projecto').addEventListener('click', async () => {
+  const nome = prompt('Nome do novo projecto (ex.: P3191_ANA):');
+  if (!nome) return;
+  setBusy(true, 'A criar projecto…');
+  try {
+    const data = await post('/api/projectos', { nome });
+    if (data.error) { showResult(false, data.error); return; }
+    preencherProjectos(data.projectos);
+    $('projecto').value = nome.trim();
+    showResult(true, `Projecto «${esc(nome)}» criado.`);
+  } catch (e) { showResult(false, 'Erro de comunicação: ' + e); }
+  finally { setBusy(false); }
+});
+
+/* ------------------------------------------------------- 2 · Outlook ---- */
+$('btn-pastas').addEventListener('click', async () => {
+  setBusy(true, 'A ler pastas do Outlook…');
+  try {
+    const data = await post('/api/outlook/pastas', {});
+    if (data.error) { showResult(false, data.error); return; }
+    const sel = $('pasta-outlook');
+    sel.innerHTML = '';
+    data.pastas.forEach(p => {
+      const o = document.createElement('option');
+      o.value = p.entry_id + '|' + p.store_id;
+      const indent = '\u00A0\u00A0'.repeat(Math.max(0, p.nivel - 1));
+      o.textContent = indent + p.nome + (p.total != null ? ` (${p.total})` : '');
+      o.title = p.caminho;
+      sel.appendChild(o);
+    });
+    showResult(true, `${data.pastas.length} pasta(s) de correio lidas — escolha a pasta e liste os emails.`);
+  } catch (e) { showResult(false, 'Erro de comunicação: ' + e); }
+  finally { setBusy(false); }
+});
+
+async function listarEmails() {
+  const v = $('pasta-outlook').value;
+  if (!v) { alert('Escolha a pasta do Outlook (carregue primeiro em «Ler pastas do Outlook»).'); return; }
+  const [entry_id, store_id] = v.split('|');
+  setBusy(true, 'A listar emails…');
+  try {
+    const data = await post('/api/outlook/emails', {
+      entry_id, store_id,
+      filtro: $('filtro').value, limite: $('limite').value,
+    });
+    if (data.error) { showResult(false, data.error); return; }
+    emailsListados = data.emails;
+    const tb = $('tbl-emails');
+    tb.innerHTML = '';
+    data.emails.forEach((m, i) => {
+      const tr = document.createElement('tr');
+      if (m.arquivado) tr.className = 'ja';
+      tr.innerHTML =
+        `<td><input type="checkbox" class="chk-mail" data-i="${i}"${m.arquivado ? '' : ' checked'}></td>` +
+        `<td>${esc(m.data)}</td><td>${esc(m.remetente)}</td><td>${esc(m.assunto)}</td>` +
+        `<td style="text-align:center;">${m.anexos || ''}</td>` +
+        `<td>${m.arquivado ? '<span class="tag">arquivado</span>' : ''}</td>`;
+      tb.appendChild(tr);
+    });
+    $('tbl-wrap').style.display = data.emails.length ? 'block' : 'none';
+    $('chk-todos').checked = false;
+    const nota = $('nota-lista');
+    nota.style.display = 'block';
+    nota.textContent = `${data.emails.length} email(s) listados` +
+      (data.truncado ? ` — pesquisa limitada aos ${data.varridos} mais recentes; use o filtro para refinar.` : '.');
+    if (!data.emails.length) showResult(false, 'Nenhum email encontrado com estes critérios.');
+    else { $('resultado').style.display = 'none'; }
+  } catch (e) { showResult(false, 'Erro de comunicação: ' + e); }
+  finally { setBusy(false); }
+}
+$('btn-emails').addEventListener('click', listarEmails);
+$('filtro').addEventListener('keydown', e => { if (e.key === 'Enter') listarEmails(); });
+
+$('chk-todos').addEventListener('change', () => {
+  document.querySelectorAll('.chk-mail').forEach(c => c.checked = $('chk-todos').checked);
+});
+
+function renderArquivo(data) {
+  if (data.error) { showResult(false, data.error); return false; }
+  let h = `<b>Arquivo concluído:</b> ${data.arquivados.length} email(s) gravados no projecto.`;
+  if (data.pasta) h += `<br><span class="muted">Pasta: ${esc(data.pasta)}</span>`;
+  if (data.repetidos.length)
+    h += `<div class="aviso">${data.repetidos.length} ignorado(s) por já constarem do índice ` +
+         `(active «Permitir repetidos» para forçar).</div>`;
+  for (const e of (data.erros || [])) h += `<div class="aviso">${esc(e)}</div>`;
+  showResult(data.arquivados.length > 0 || !data.erros.length, h);
+  return true;
+}
+
+$('btn-arquivar').addEventListener('click', async () => {
+  const projecto = $('projecto').value;
+  if (!projecto) { alert('Escolha o projecto (secção 1).'); return; }
+  const ids = [...document.querySelectorAll('.chk-mail:checked')]
+    .map(c => emailsListados[+c.dataset.i])
+    .filter(Boolean)
+    .map(m => ({ entry_id: m.entry_id, store_id: m.store_id }));
+  if (!ids.length) { alert('Seleccione pelo menos um email na lista.'); return; }
+  setBusy(true, `A arquivar ${ids.length} email(s)…`);
+  try {
+    const data = await post('/api/arquivar', {
+      ids: JSON.stringify(ids), projecto,
+      repetidos: $('chk-repetidos').checked ? '1' : '0',
+    });
+    if (renderArquivo(data)) listarEmails();   // refresca estados «arquivado»
+  } catch (e) { showResult(false, 'Erro de comunicação: ' + e); }
+  finally { setBusy(false); }
+});
+
+$('btn-msg-files').addEventListener('click', async () => {
+  const projecto = $('projecto').value;
+  if (!projecto) { alert('Escolha o projecto (secção 1).'); return; }
+  let caminhos = [];
+  try { caminhos = await window.pywebview.api.choose_msg_files(); }
+  catch (e) { return; }
+  if (!caminhos || !caminhos.length) return;
+  setBusy(true, `A arquivar ${caminhos.length} ficheiro(s)…`);
+  try {
+    const data = await post('/api/arquivar-ficheiros', {
+      caminhos: JSON.stringify(caminhos), projecto,
+      repetidos: $('chk-repetidos').checked ? '1' : '0',
+    });
+    renderArquivo(data);
+  } catch (e) { showResult(false, 'Erro de comunicação: ' + e); }
+  finally { setBusy(false); }
+});
+
+/* ------------------------------------------------------ 3 · pesquisa ---- */
+async function pesquisar() {
+  const termo = $('termo').value.trim();
+  if (!termo) { alert('Indique o texto a pesquisar.'); return; }
+  setBusy(true, 'A pesquisar…');
+  try {
+    const data = await post('/api/pesquisar', { termo, projecto: $('ambito').value });
+    if (data.error) { showResult(false, data.error); return; }
+    const tb = $('tbl-res');
+    tb.innerHTML = '';
+    data.resultados.forEach(r => {
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        `<td>${esc(r.projecto)}</td><td>${esc(r.data)}</td>` +
+        `<td>${esc(r.remetente)}</td><td>${esc(r.assunto)}</td>` +
+        `<td>${esc(r.arquivado_por)}</td>` +
+        `<td>${r.existe
+            ? `<button class="btn sec btn-abrir" data-c="${esc(r.caminho)}" style="padding:4px 10px;font-size:12px;">Abrir</button>`
+            : '<span class="muted">ficheiro em falta</span>'}</td>`;
+      tb.appendChild(tr);
+    });
+    $('res-wrap').style.display = data.resultados.length ? 'block' : 'none';
+    const nota = $('nota-res');
+    nota.style.display = 'block';
+    nota.textContent = `${data.resultados.length} resultado(s)` +
+      (data.truncado ? ' — lista truncada; refine a pesquisa.' : '.');
+  } catch (e) { showResult(false, 'Erro de comunicação: ' + e); }
+  finally { setBusy(false); }
+}
+$('btn-pesquisar').addEventListener('click', pesquisar);
+$('termo').addEventListener('keydown', e => { if (e.key === 'Enter') pesquisar(); });
+
+$('tbl-res').addEventListener('click', async e => {
+  const b = e.target.closest('.btn-abrir');
+  if (!b) return;
+  const data = await post('/api/abrir', { caminho: b.dataset.c });
+  if (data.error) showResult(false, data.error);
+});
+
+$('btn-abrir-projecto').addEventListener('click', async () => {
+  const raiz = $('pasta-raiz').value.trim();
+  const prj = $('projecto').value;
+  if (!raiz || !prj) { alert('Escolha a pasta raiz e o projecto (secção 1).'); return; }
+  const sep = raiz.includes('/') && !raiz.includes('\\') ? '/' : '\\';
+  const data = await post('/api/abrir', { caminho: raiz.replace(/[\\/]+$/, '') + sep + prj });
+  if (data.error) showResult(false, data.error);
+});
+
+/* diálogos nativos — só na janela da aplicação (pywebview) */
+window.addEventListener('pywebviewready', () => {
+  emJanela = true;
+  $('btn-pick-raiz').style.display = 'inline-block';
+  $('btn-msg-files').style.display = 'inline-block';
+});
+$('btn-pick-raiz').addEventListener('click', async () => {
+  try {
+    const p = await window.pywebview.api.choose_folder();
+    if (p) { $('pasta-raiz').value = p; gravarRaizELerProjectos(false); }
+  } catch (e) { /* diálogo cancelado ou indisponível */ }
+});
+
+/* se já houver pasta raiz configurada, carrega logo os projectos */
+if ($('pasta-raiz').value.trim()) gravarRaizELerProjectos(true);
+</script>
+</body>
+</html>
