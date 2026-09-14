@@ -197,6 +197,34 @@ def _pasta_projecto(projecto):
     return p
 
 
+def _pasta_email_projecto(projecto, criar=True):
+    pasta = os.path.join(_pasta_projecto(projecto), "02-Geral", "06-Email")
+    if criar:
+        os.makedirs(pasta, exist_ok=True)
+    return pasta
+
+
+def _pastas_consulta_projecto(projecto):
+    projeto = _pasta_projecto(projecto)
+    email = os.path.join(projeto, "02-Geral", "06-Email")
+    pastas = [email] if os.path.isdir(email) else []
+    legado = projeto
+    if os.path.isfile(os.path.join(legado, INDICE_NOME)):
+        pastas.append(legado)
+    return pastas
+
+
+def _metadados_historico_projecto(projecto):
+    dados = {}
+    for pasta in _pastas_consulta_projecto(projecto):
+        dados.update(_metadados_arquivados(pasta))
+    return dados
+
+
+def _msgids_historico_projecto(projecto):
+    return set(_metadados_historico_projecto(projecto))
+
+
 # ------------------------------------------------------- nomes normalizados --
 def _sem_acentos(s):
     return unicodedata.normalize("NFKD", s or "").encode(
@@ -431,9 +459,9 @@ def listar_emails(entry_id, store_id, limite=50, filtro="", projecto="",
     arquivados_no_projecto = set()
     metadados_no_projecto = {}
     if projecto:
-        pasta_projecto = _pasta_projecto(projecto)
-        arquivados_no_projecto = _msgids_arquivados(pasta_projecto)
-        metadados_no_projecto = _metadados_arquivados(pasta_projecto)
+        pasta_projecto = _pasta_email_projecto(projecto)
+        arquivados_no_projecto = _msgids_historico_projecto(projecto)
+        metadados_no_projecto = _metadados_historico_projecto(projecto)
     try:
         pasta = ns.GetFolderFromID(entry_id, store_id)
     except Exception:
@@ -532,7 +560,7 @@ def selecionar_emails(projecto=""):
                           "Abra uma pasta e seleccione os emails.") from e
     metadados = {}
     if projecto:
-        metadados = _metadados_arquivados(_pasta_projecto(projecto))
+        metadados = _metadados_historico_projecto(projecto)
     out = []
     for indice in range(1, selection.Count + 1):
         try:
@@ -617,9 +645,9 @@ def arquivar_emails(ids, projecto, permitir_repetidos=False,
     """ids: lista de {entry_id, store_id} vindos de listar_emails."""
     if not ids:
         raise EngineError("Seleccione pelo menos um email.")
-    pasta_projecto = _pasta_projecto(projecto)
+    pasta_projecto = _pasta_email_projecto(projecto)
     ns = _outlook()
-    ja = _msgids_arquivados(pasta_projecto)
+    ja = _msgids_historico_projecto(projecto)
     arquivados, repetidos, erros = [], [], []
     for ref in ids:
         try:
@@ -653,9 +681,9 @@ def arquivar_ficheiros(caminhos, projecto, permitir_repetidos=False,
     para ler os metadados e grava uma cópia normalizada no projecto."""
     if not caminhos:
         raise EngineError("Escolha pelo menos um ficheiro .msg.")
-    pasta_projecto = _pasta_projecto(projecto)
+    pasta_projecto = _pasta_email_projecto(projecto)
     ns = _outlook()
-    ja = _msgids_arquivados(pasta_projecto)
+    ja = _msgids_historico_projecto(projecto)
     arquivados, repetidos, erros = [], [], []
     for c in caminhos:
         try:
@@ -682,10 +710,8 @@ def pesquisar(termo, projecto=None, max_resultados=200):
     projectos = [projecto] if projecto else listar_projectos()
     out = []
     for prj in projectos:
-        pasta = os.path.join(raiz, prj)
-        if not os.path.isdir(pasta):
-            continue
-        for r in _ler_indice(pasta):
+        for pasta in _pastas_consulta_projecto(prj):
+          for r in _ler_indice(pasta):
             alvo = " ".join([r.get("DataEmail", ""), r.get("Remetente", ""),
                              r.get("Destinatarios", ""), r.get("Assunto", ""),
                              r.get("Ficheiro", ""), r.get("Contexto", ""),
@@ -707,8 +733,8 @@ def pesquisar(termo, projecto=None, max_resultados=200):
                     "existe": os.path.isfile(
                         os.path.join(pasta, r.get("Ficheiro", ""))),
                 })
-                if len(out) >= max_resultados:
-                    return {"resultados": out, "truncado": True}
+            if len(out) >= max_resultados:
+                return {"resultados": out, "truncado": True}
     out.sort(key=lambda r: r["data"], reverse=True)
     return {"resultados": out, "truncado": False}
 

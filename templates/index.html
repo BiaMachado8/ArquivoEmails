@@ -23,6 +23,11 @@
 
   .card { background: #fff; border: 1px solid var(--borda); border-radius: 6px; margin-bottom: 18px; }
   .card h2 { background: var(--azul-claro); color: var(--azul); font-size: 14px; padding: 10px 16px; border-bottom: 1px solid var(--borda); display: flex; align-items: center; }
+  .card h2.recolhivel { cursor: pointer; user-select: none; }
+  .card h2.recolhivel::after { content: "＋"; margin-left: auto; font-size: 18px; }
+  .card.recolhido h2.recolhivel::after { content: "＋"; }
+  .card:not(.recolhido) h2.recolhivel::after { content: "−"; }
+  .card.recolhido > .body { display: none; }
   .card .body { padding: 16px; }
 
   .info { display: inline-flex; align-items: center; justify-content: center;
@@ -121,7 +126,7 @@
   {% endif %}
 
   <div class="card">
-    <h2>1 · Arquivo e projecto
+    <h2>Parte 1 · Identificação Projeto
       <i class="info" data-tip="A pasta raiz é onde vive o arquivo: para testes pode ser uma pasta local (ex.: C:\Arquivo_Emails); para uso partilhado pela equipa, uma pasta de rede (ex.: \\servidor\DEP\Arquivo_Emails). Cada projecto é uma subpasta da raiz, com os emails arquivados e um índice (_indice_emails.csv) que abre no Excel. A configuração fica guardada por utilizador."></i>
     </h2>
     <div class="body">
@@ -141,8 +146,8 @@
     </div>
   </div>
 
-  <div class="card">
-    <h2>2 · Emails no Outlook
+  <div class="card recolhido">
+    <h2 class="recolhivel">Parte 2 · Arquivar E-mails
       <i class="info" data-tip="Requer o Outlook clássico aberto. No Outlook, selecione os emails pretendidos com Ctrl ou Shift e depois carregue no botão. O Estado é lido do índice do projecto na pasta partilhada: todos os utilizadores veem o mesmo histórico."></i>
     </h2>
     <div class="body">
@@ -200,8 +205,8 @@
     </div>
   </div>
 
-  <div class="card">
-    <h2>3 · Pesquisar no arquivo
+  <div class="card recolhido">
+    <h2 class="recolhivel">Parte 3 · Pesquisar E-mails
       <i class="info" data-tip="Pesquisa nos índices dos projectos (data, remetente, destinatários, assunto e nome do ficheiro). Com «Todos os projectos», percorre o arquivo inteiro. O botão «Abrir» abre o .msg no Outlook; «Pasta» abre a pasta do projecto no Explorador."></i>
     </h2>
     <div class="body">
@@ -210,10 +215,6 @@
           <label>Texto a pesquisar</label>
           <input type="text" id="termo" placeholder="ex.: aprovação, nome do remetente, P3191…">
         </div>
-        <div class="fld" style="width:260px;">
-          <label>Âmbito</label>
-          <select id="ambito"><option value="">Todos os projectos</option></select>
-        </div>
         <button class="btn" id="btn-pesquisar">Pesquisar</button>
         <button class="btn sec" id="btn-abrir-projecto" title="Abre no Explorador a pasta do projecto seleccionado na secção 1.">Abrir pasta do projecto</button>
       </div>
@@ -221,7 +222,6 @@
         <table class="search-table">
           <thead>
             <tr>
-              <th style="width:110px;">Projecto</th>
               <th style="width:120px;">Data</th>
               <th style="width:160px;">Remetente</th>
               <th style="width:150px;">Entidade</th>
@@ -276,18 +276,14 @@ async function post(url, data) {
 
 /* ------------------------------------------------ 1 · arquivo e projectos */
 function preencherProjectos(lista) {
-  for (const sel of [$('projecto'), $('ambito')]) {
-    const manter = sel.id === 'ambito';
-    sel.innerHTML = manter ? '<option value="">Todos os projectos</option>'
-                           : '<option value="">— escolher —</option>';
-    lista.forEach(p => {
-      const o = document.createElement('option');
-      o.value = o.textContent = p;
-      sel.appendChild(o);
-    });
-    if (sel.id === 'projecto' && lista.length && !lista.includes(sel.value))
-      sel.value = lista[0];
-  }
+  const sel = $('projecto');
+  sel.innerHTML = '<option value="">— escolher —</option>';
+  lista.forEach(p => {
+    const o = document.createElement('option');
+    o.value = o.textContent = p;
+    sel.appendChild(o);
+  });
+  if (lista.length && !lista.includes(sel.value)) sel.value = lista[0];
 }
 
 async function gravarRaizELerProjectos(silencioso) {
@@ -506,14 +502,14 @@ async function pesquisar() {
   const termo = $('termo').value.trim();
   setBusy(true, 'A pesquisar…');
   try {
-    const data = await post('/api/pesquisar', { termo, projecto: $('ambito').value });
+    const data = await post('/api/pesquisar', { termo, projecto: $('projecto').value });
     if (data.error) { showResult(false, data.error); return; }
     const tb = $('tbl-res');
     tb.innerHTML = '';
     data.resultados.forEach(r => {
       const tr = document.createElement('tr');
       tr.innerHTML =
-        `<td>${esc(r.projecto)}</td><td>${esc(r.data)}</td>` +
+        `<td>${esc(r.data)}</td>` +
         `<td>${esc(r.remetente)}</td><td>${esc(r.entidade)}</td><td>${esc(r.assunto)}</td>` +
         `<td>${esc(r.contexto)}</td>` +
         `<td>${r.pasta_anexos
@@ -549,11 +545,16 @@ $('btn-abrir-projecto').addEventListener('click', async () => {
   const prj = $('projecto').value;
   if (!raiz || !prj) { alert('Escolha a pasta raiz e o projecto (secção 1).'); return; }
   const sep = raiz.includes('/') && !raiz.includes('\\') ? '/' : '\\';
-  const data = await post('/api/abrir', { caminho: raiz.replace(/[\\/]+$/, '') + sep + prj });
+  const data = await post('/api/abrir', { caminho: raiz.replace(/[\\/]+$/, '') + sep + prj + sep + '02-Geral' + sep + '06-Email' });
   if (data.error) showResult(false, data.error);
 });
 
 /* diálogos nativos — só na janela da aplicação (pywebview) */
+document.querySelectorAll('.recolhivel').forEach(titulo => {
+  titulo.addEventListener('click', () => {
+    titulo.parentElement.classList.toggle('recolhido');
+  });
+});
 window.addEventListener('pywebviewready', () => {
   emJanela = true;
   $('btn-pick-raiz').style.display = 'inline-block';
