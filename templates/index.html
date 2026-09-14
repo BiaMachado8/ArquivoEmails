@@ -64,6 +64,7 @@
                    padding: 4px; font-size: 11px; margin-top: 4px; }
   .anexos-lista { margin-top: 5px; font-size: 11px; }
   .anexos-lista label { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .anexos-todos { display: block; margin: 5px 0; font-size: 11px; color: var(--azul); }
   .fld.caminho { flex: 1; min-width: 300px; }
 
   .btn { background: var(--azul); color: #fff; border: 1px solid var(--azul); border-radius: 4px;
@@ -408,7 +409,7 @@ async function listarEmailsSelecionados() {
         `<td><div class="anexos-lista">${m.anexos.length ? m.anexos.map(a =>
           `<label title="${esc(a.nome)}"><input type="checkbox" class="anexo-mail" data-i="${i}" data-anexo="${a.indice}" checked> ${esc(a.nome)}</label>`).join('')
           : '<span class="muted">Sem anexos</span>'}</div>` +
-          `${m.anexos.length ? `<button type="button" class="btn sec btn-anexos-todos" data-i="${i}">Desselecionar todos</button>` : ''}` +
+          `${m.anexos.length ? `<label class="anexos-todos"><input type="checkbox" class="chk-anexos-todos" data-i="${i}" checked> Selecionar todos</label>` : ''}` +
           `<input class="pasta-anexos-mail" data-i="${i}" value="${esc(m.pasta_anexos_sugerida)}" title="Nome da pasta dos anexos">` +
           `<input type="file" class="ficheiros-mail" data-i="${i}" multiple title="Adicionar ficheiros próprios">` +
           `<input type="url" class="link-mail" data-i="${i}" value="${esc(m.links || '')}" placeholder="Link opcional"></td>` +
@@ -427,12 +428,17 @@ async function listarEmailsSelecionados() {
 }
 $('btn-selecionados').addEventListener('click', listarEmailsSelecionados);
 $('tbl-emails').addEventListener('click', e => {
-  const botao = e.target.closest('.btn-anexos-todos');
-  if (!botao) return;
-  const anexos = document.querySelectorAll(`.anexo-mail[data-i="${botao.dataset.i}"]`);
-  const todosMarcados = [...anexos].every(campo => campo.checked);
-  anexos.forEach(campo => campo.checked = !todosMarcados);
-  botao.textContent = todosMarcados ? 'Selecionar todos' : 'Desselecionar todos';
+  const controlo = e.target.closest('.chk-anexos-todos');
+  if (!controlo) return;
+  document.querySelectorAll(`.anexo-mail[data-i="${controlo.dataset.i}"]`)
+    .forEach(campo => campo.checked = controlo.checked);
+});
+$('tbl-emails').addEventListener('change', e => {
+  const anexo = e.target.closest('.anexo-mail');
+  if (!anexo) return;
+  const todos = document.querySelectorAll(`.anexo-mail[data-i="${anexo.dataset.i}"]`);
+  const controlo = document.querySelector(`.chk-anexos-todos[data-i="${anexo.dataset.i}"]`);
+  if (controlo) controlo.checked = [...todos].every(campo => campo.checked);
 });
 $('btn-contexto-lote').addEventListener('click', () => {
   const valor = $('contexto-lote').value;
