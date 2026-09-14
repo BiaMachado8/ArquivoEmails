@@ -479,7 +479,8 @@ def selecionar_emails(projecto=""):
 
 
 def _arquivar_item(item, pasta_projecto, projecto, ja_arquivados,
-                   permitir_repetidos, marcar_categoria, contexto="", links=""):
+                   permitir_repetidos, marcar_categoria, contexto="", links="",
+                   entidade=""):
     """Arquiva um MailItem; devolve ('ok'|'repetido', info)."""
     msgid = _message_id(item)
     if msgid and not permitir_repetidos and msgid in ja_arquivados:
@@ -508,7 +509,7 @@ def _arquivar_item(item, pasta_projecto, projecto, ja_arquivados,
         "PastaAnexos": pasta_anexos,
         "Contexto": contexto.strip(),
         "Links": links.strip(),
-        "Entidade": _entidade_item(item),
+        "Entidade": (entidade or _entidade_item(item)).strip(),
         "Projecto": projecto,
         "ArquivadoPor": os.environ.get("USERNAME", ""),
         "DataArquivo": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -549,7 +550,8 @@ def arquivar_emails(ids, projecto, permitir_repetidos=False,
                                           permitir_repetidos,
                                           marcar_categoria,
                                           ref.get("contexto", ""),
-                                          ref.get("links", ""))
+                                          ref.get("links", ""),
+                                          ref.get("entidade", ""))
             (arquivados if estado == "ok" else repetidos).append(info)
         except EngineError:
             raise

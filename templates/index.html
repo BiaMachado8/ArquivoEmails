@@ -46,10 +46,13 @@
   .fld textarea { resize: vertical; min-height: 42px; font-family: inherit; }
   .ctx-mail, .link-mail { width: 100%; min-width: 150px; border: 1px solid var(--borda);
                           border-radius: 3px; padding: 5px; font-size: 12px; background: #fff; }
-  .contextos-editor { border: 1px solid var(--borda); border-radius: 4px; padding: 12px;
-                      background: #f8fbfe; margin-bottom: 14px; }
-  .contexto-opcao { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+  .contextos-editor { border: 1px solid var(--borda); border-radius: 4px; padding: 8px;
+                      background: #f8fbfe; margin-bottom: 10px; max-height: 190px; overflow: auto; }
+  .contexto-opcao { display: inline-flex; width: 48%; gap: 5px; align-items: center; margin-top: 5px; }
   .contexto-opcao input { flex: 1; border: 1px solid var(--borda); border-radius: 3px; padding: 6px; }
+  .contexto-opcao .btn { padding: 5px 8px; font-size: 11px; }
+  .entidade-mail { width: 100%; min-width: 140px; border: 1px solid var(--borda);
+                   border-radius: 3px; padding: 5px; font-size: 12px; background: #fff; }
   .fld.caminho { flex: 1; min-width: 300px; }
 
   .btn { background: var(--azul); color: #fff; border: 1px solid var(--azul); border-radius: 4px;
@@ -323,7 +326,8 @@ function renderContextos() {
     `<button class="btn sec btn-remover-contexto" data-contexto="${i}">Remover</button></div>`).join('');
 }
 function opcoesContexto(atual) {
-  return `<option value="">— escolher —</option>` + contextos.map(valor =>
+  const lista = atual && !contextos.includes(atual) ? [atual, ...contextos] : contextos;
+  return `<option value="">— escolher —</option>` + lista.map(valor =>
     `<option value="${esc(valor)}"${valor === atual ? ' selected' : ''}>${esc(valor)}</option>`).join('');
 }
 $('btn-gerir-contextos').addEventListener('click', async () => {
@@ -357,6 +361,10 @@ $('btn-gravar-contextos').addEventListener('click', async () => {
 });
 
 async function listarEmailsSelecionados() {
+  if (!$('projecto').value) { alert('Escolha primeiro o projecto.'); return; }
+  if (!contextos.length) {
+    try { await carregarContextos(); } catch (e) { showResult(false, e.message); return; }
+  }
   setBusy(true, 'A listar emails…');
   try {
     const data = await post('/api/outlook/selecionados', { projecto: $('projecto').value });
@@ -369,7 +377,9 @@ async function listarEmailsSelecionados() {
       if (m.arquivado) tr.className = 'ja';
       tr.innerHTML =
         `<td><input type="checkbox" class="chk-mail" data-i="${i}"${m.arquivado ? '' : ' checked'}></td>` +
-        `<td>${esc(m.data)}</td><td>${esc(m.remetente)}</td><td>${esc(m.entidade)}</td><td>${esc(m.assunto)}</td>` +
+        `<td>${esc(m.data)}</td><td>${esc(m.remetente)}</td>` +
+        `<td><input class="entidade-mail" data-i="${i}" value="${esc(m.entidade || '')}" placeholder="Empresa"></td>` +
+        `<td>${esc(m.assunto)}</td>` +
         `<td><select class="ctx-mail" data-i="${i}">${opcoesContexto(m.contexto)}</select></td>` +
         `<td><span class="tag">${m.anexos || 0} ficheiro(s)</span>` +
           `<input type="url" class="link-mail" data-i="${i}" value="${esc(m.links || '')}" placeholder="Link opcional"></td>` +
@@ -411,12 +421,13 @@ $('btn-arquivar').addEventListener('click', async () => {
     .map(c => {
       const contexto = document.querySelector(`.ctx-mail[data-i="${c.dataset.i}"]`);
       const link = document.querySelector(`.link-mail[data-i="${c.dataset.i}"]`);
+      const entidade = document.querySelector(`.entidade-mail[data-i="${c.dataset.i}"]`);
       return { email: emailsListados[+c.dataset.i], contexto: contexto ? contexto.value : '',
-        links: link ? link.value : '' };
+        links: link ? link.value : '', entidade: entidade ? entidade.value : '' };
     })
     .filter(Boolean)
     .map(item => ({ entry_id: item.email.entry_id, store_id: item.email.store_id,
-      contexto: item.contexto, links: item.links }));
+      contexto: item.contexto, links: item.links, entidade: item.entidade }));
   if (!ids.length) { alert('Seleccione pelo menos um email na lista.'); return; }
   setBusy(true, `A arquivar ${ids.length} email(s)…`);
   try {
