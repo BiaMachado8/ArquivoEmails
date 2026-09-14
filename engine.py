@@ -81,6 +81,14 @@ def gravar_config(pasta_raiz):
     pasta_raiz = (pasta_raiz or "").strip().strip('"')
     if pasta_raiz and not os.path.isdir(pasta_raiz):
         raise EngineError(f"A pasta indicada não existe: {pasta_raiz}")
+    if pasta_raiz:
+        nome = os.path.basename(os.path.normpath(pasta_raiz))
+        conteudo = os.listdir(pasta_raiz)
+        e_projeto = (os.path.isfile(os.path.join(pasta_raiz, INDICE_NOME))
+                     or os.path.isdir(os.path.join(pasta_raiz, "Anexos"))
+                     or any(str(f).lower().endswith(".msg") for f in conteudo))
+        if e_projeto and re.match(r"^[\w\-. ]{2,80}$", nome, re.UNICODE):
+            pasta_raiz = os.path.dirname(os.path.normpath(pasta_raiz))
     cfg = ler_config()
     cfg["pasta_raiz"] = pasta_raiz
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:

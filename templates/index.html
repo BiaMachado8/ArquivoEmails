@@ -289,6 +289,7 @@ async function gravarRaizELerProjectos(silencioso) {
   try {
     const cfg = await post('/api/config', { pasta_raiz: pasta });
     if (cfg.error) { showResult(false, cfg.error); return; }
+    $('pasta-raiz').value = cfg.pasta_raiz;
     const data = await post('/api/projectos', {});
     if (data.error) { showResult(false, data.error); return; }
     preencherProjectos(data.projectos);
