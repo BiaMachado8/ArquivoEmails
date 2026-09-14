@@ -469,7 +469,8 @@ def selecionar_emails(projecto=""):
         try:
             item = selection.Item(indice)
             if getattr(item, "Class", None) == OL_MAIL_ITEM:
-                out.append(_dados_item(item, item.StoreID, metadados))
+                out.append(_dados_item(item, getattr(item, "StoreID", "") or "",
+                                       metadados))
         except Exception:
             continue
     if not out:
@@ -540,7 +541,10 @@ def arquivar_emails(ids, projecto, permitir_repetidos=False,
     arquivados, repetidos, erros = [], [], []
     for ref in ids:
         try:
-            item = ns.GetItemFromID(ref["entry_id"], ref["store_id"])
+            if ref.get("store_id"):
+                item = ns.GetItemFromID(ref["entry_id"], ref["store_id"])
+            else:
+                item = ns.GetItemFromID(ref["entry_id"])
             estado, info = _arquivar_item(item, pasta_projecto, projecto, ja,
                                           permitir_repetidos,
                                           marcar_categoria,
