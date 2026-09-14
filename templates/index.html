@@ -41,8 +41,9 @@
          padding: 12px 12px 8px; background: #fff; }
   .fld > label { position: absolute; top: -8px; left: 10px; background: #fff; padding: 0 5px;
                  font-size: 11px; color: var(--azul); font-weight: 600; white-space: nowrap; }
-  .fld input, .fld select { border: none; outline: none; font-size: 14px; width: 100%;
+  .fld input, .fld select, .fld textarea { border: none; outline: none; font-size: 14px; width: 100%;
                             background: transparent; color: #222; }
+  .fld textarea { resize: vertical; min-height: 42px; font-family: inherit; }
   .fld.caminho { flex: 1; min-width: 300px; }
 
   .btn { background: var(--azul); color: #fff; border: 1px solid var(--azul); border-radius: 4px;
@@ -155,6 +156,10 @@
       <div class="muted" id="nota-lista" style="margin-top:8px; display:none;"></div>
 
       <div class="oprow" style="margin-top:14px;">
+        <div class="fld" style="flex:1; min-width:280px;">
+          <label>Contexto do arquivamento (opcional)</label>
+          <textarea id="contexto" rows="2" placeholder="ex.: decisão, tema ou enquadramento do email"></textarea>
+        </div>
         <button class="btn" id="btn-arquivar" style="min-width:260px;">Arquivar seleccionados no projecto</button>
         <button class="btn sec" id="btn-msg-files" style="display:none;" title="Alternativa sem lista: escolher ficheiros .msg já guardados no disco (ex.: arrastados do Outlook para uma pasta) e arquivá-los no projecto com nome normalizado.">Arquivar ficheiros .msg…</button>
         <label style="font-size:13px; color:var(--azul); font-weight:600; display:flex; align-items:center; gap:6px; cursor:pointer;">
@@ -194,6 +199,8 @@
               <th style="width:120px;">Data</th>
               <th style="width:160px;">Remetente</th>
               <th>Assunto</th>
+              <th>Contexto</th>
+              <th style="width:100px;">Anexos</th>
               <th style="width:110px;">Arquivado por</th>
               <th style="width:130px;">Abrir</th>
             </tr>
@@ -372,6 +379,7 @@ $('btn-arquivar').addEventListener('click', async () => {
     const data = await post('/api/arquivar', {
       ids: JSON.stringify(ids), projecto,
       repetidos: $('chk-repetidos').checked ? '1' : '0',
+      contexto: $('contexto').value,
     });
     if (renderArquivo(data)) listarEmails();   // refresca estados «arquivado»
   } catch (e) { showResult(false, 'Erro de comunicação: ' + e); }
@@ -390,6 +398,7 @@ $('btn-msg-files').addEventListener('click', async () => {
     const data = await post('/api/arquivar-ficheiros', {
       caminhos: JSON.stringify(caminhos), projecto,
       repetidos: $('chk-repetidos').checked ? '1' : '0',
+      contexto: $('contexto').value,
     });
     renderArquivo(data);
   } catch (e) { showResult(false, 'Erro de comunicação: ' + e); }
@@ -411,6 +420,10 @@ async function pesquisar() {
       tr.innerHTML =
         `<td>${esc(r.projecto)}</td><td>${esc(r.data)}</td>` +
         `<td>${esc(r.remetente)}</td><td>${esc(r.assunto)}</td>` +
+        `<td>${esc(r.contexto)}</td>` +
+        `<td>${r.pasta_anexos
+          ? `<button class="btn sec btn-abrir" data-c="${esc(r.pasta_anexos)}" style="padding:4px 10px;font-size:12px;">Abrir pasta</button>`
+          : '<span class="muted">nenhum</span>'}</td>` +
         `<td>${esc(r.arquivado_por)}</td>` +
         `<td>${r.existe
             ? `<button class="btn sec btn-abrir" data-c="${esc(r.caminho)}" style="padding:4px 10px;font-size:12px;">Abrir</button>`
