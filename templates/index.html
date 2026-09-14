@@ -156,10 +156,6 @@
       <div class="muted" id="nota-lista" style="margin-top:8px; display:none;"></div>
 
       <div class="oprow" style="margin-top:14px;">
-        <div class="fld" style="flex:1; min-width:280px;">
-          <label>Contexto do arquivamento (opcional)</label>
-          <textarea id="contexto" rows="2" placeholder="ex.: decisão, tema ou enquadramento do email"></textarea>
-        </div>
         <button class="btn" id="btn-arquivar" style="min-width:260px;">Arquivar seleccionados no projecto</button>
         <button class="btn sec" id="btn-msg-files" style="display:none;" title="Alternativa sem lista: escolher ficheiros .msg já guardados no disco (ex.: arrastados do Outlook para uma pasta) e arquivá-los no projecto com nome normalizado.">Arquivar ficheiros .msg…</button>
         <label style="font-size:13px; color:var(--azul); font-weight:600; display:flex; align-items:center; gap:6px; cursor:pointer;">
@@ -199,7 +195,7 @@
               <th style="width:120px;">Data</th>
               <th style="width:160px;">Remetente</th>
               <th>Assunto</th>
-              <th>Contexto</th>
+              <th style="width:210px;">Contexto</th>
               <th style="width:100px;">Anexos</th>
               <th style="width:110px;">Arquivado por</th>
               <th style="width:130px;">Abrir</th>
@@ -332,6 +328,7 @@ async function listarEmails() {
       tr.innerHTML =
         `<td><input type="checkbox" class="chk-mail" data-i="${i}"${m.arquivado ? '' : ' checked'}></td>` +
         `<td>${esc(m.data)}</td><td>${esc(m.remetente)}</td><td>${esc(m.assunto)}</td>` +
+        `<td><input type="text" class="ctx-mail" data-i="${i}" placeholder="Contexto deste email"></td>` +
         `<td style="text-align:center;">${m.anexos || ''}</td>` +
         `<td>${m.arquivado ? '<span class="tag">arquivado</span>' : ''}</td>`;
       tb.appendChild(tr);
@@ -370,16 +367,19 @@ $('btn-arquivar').addEventListener('click', async () => {
   const projecto = $('projecto').value;
   if (!projecto) { alert('Escolha o projecto (secção 1).'); return; }
   const ids = [...document.querySelectorAll('.chk-mail:checked')]
-    .map(c => emailsListados[+c.dataset.i])
+    .map(c => {
+      const contexto = document.querySelector(`.ctx-mail[data-i="${c.dataset.i}"]`);
+      return { email: emailsListados[+c.dataset.i], contexto: contexto ? contexto.value : '' };
+    })
     .filter(Boolean)
-    .map(m => ({ entry_id: m.entry_id, store_id: m.store_id }));
+    .map(item => ({ entry_id: item.email.entry_id, store_id: item.email.store_id,
+      contexto: item.contexto }));
   if (!ids.length) { alert('Seleccione pelo menos um email na lista.'); return; }
   setBusy(true, `A arquivar ${ids.length} email(s)…`);
   try {
     const data = await post('/api/arquivar', {
       ids: JSON.stringify(ids), projecto,
       repetidos: $('chk-repetidos').checked ? '1' : '0',
-      contexto: $('contexto').value,
     });
     if (renderArquivo(data)) listarEmails();   // refresca estados «arquivado»
   } catch (e) { showResult(false, 'Erro de comunicação: ' + e); }
@@ -398,7 +398,6 @@ $('btn-msg-files').addEventListener('click', async () => {
     const data = await post('/api/arquivar-ficheiros', {
       caminhos: JSON.stringify(caminhos), projecto,
       repetidos: $('chk-repetidos').checked ? '1' : '0',
-      contexto: $('contexto').value,
     });
     renderArquivo(data);
   } catch (e) { showResult(false, 'Erro de comunicação: ' + e); }

@@ -418,7 +418,7 @@ def _arquivar_item(item, pasta_projecto, projecto, ja_arquivados,
 
 
 def arquivar_emails(ids, projecto, permitir_repetidos=False,
-                    marcar_categoria=True, contexto=""):
+                    marcar_categoria=True):
     """ids: lista de {entry_id, store_id} vindos de listar_emails."""
     if not ids:
         raise EngineError("Seleccione pelo menos um email.")
@@ -431,7 +431,8 @@ def arquivar_emails(ids, projecto, permitir_repetidos=False,
             item = ns.GetItemFromID(ref["entry_id"], ref["store_id"])
             estado, info = _arquivar_item(item, pasta_projecto, projecto, ja,
                                           permitir_repetidos,
-                                          marcar_categoria, contexto)
+                                          marcar_categoria,
+                                          ref.get("contexto", ""))
             (arquivados if estado == "ok" else repetidos).append(info)
         except EngineError:
             raise

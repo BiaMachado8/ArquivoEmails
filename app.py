@@ -104,8 +104,7 @@ def api_arquivar():
             ids,
             request.form.get("projecto") or "",
             permitir_repetidos=(request.form.get("repetidos") == "1"),
-            marcar_categoria=(request.form.get("marcar") != "0"),
-            contexto=request.form.get("contexto") or "")
+            marcar_categoria=(request.form.get("marcar") != "0"))
         return jsonify({"ok": True, **res})
     except engine.EngineError as e:
         return jsonify({"error": str(e)}), 400
