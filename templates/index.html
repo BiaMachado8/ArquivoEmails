@@ -60,6 +60,9 @@
                    border-radius: 3px; padding: 5px; font-size: 12px; background: #fff; }
   .anexo-option { display: flex; align-items: center; gap: 5px; white-space: nowrap; font-size: 12px; }
   .ficheiros-mail { display: block; width: 180px; max-width: 100%; margin-top: 5px; font-size: 11px; }
+  .pasta-anexos-mail { display: block; width: 100%; min-width: 150px; margin-top: 5px;
+                       border: 1px solid var(--borda); border-radius: 3px; padding: 5px;
+                       font-size: 12px; background: #fff; }
   .filtro-coluna { width: 100%; min-width: 85px; border: 1px solid var(--borda); border-radius: 3px;
                    padding: 4px; font-size: 11px; margin-top: 4px; }
   .anexos-lista { margin-top: 5px; font-size: 11px; }
@@ -169,6 +172,13 @@
         </div>
       </div>
 
+      <div class="oprow" style="margin:10px 0;">
+        <label style="font-size:13px; color:var(--azul); font-weight:600;">Aplicar o mesmo Contexto:</label>
+        <select id="contexto-lote" class="ctx-mail" style="width:230px;"><option value="">— escolher Contexto —</option></select>
+        <button class="btn sec" id="btn-contexto-lote">Aplicar aos emails selecionados</button>
+        <span class="muted">Primeiro marque os emails na primeira coluna.</span>
+      </div>
+
       <div class="tbl-wrap" id="tbl-wrap" style="display:none;">
         <table class="mail-table">
           <thead>
@@ -187,11 +197,6 @@
         </table>
       </div>
       <div class="muted" id="nota-lista" style="margin-top:8px; display:none;"></div>
-
-      <div class="oprow" style="margin-top:10px;">
-        <select id="contexto-lote" class="ctx-mail" style="width:230px;"><option value="">Contexto para os selecionados</option></select>
-        <button class="btn sec" id="btn-contexto-lote">Aplicar aos emails selecionados</button>
-      </div>
 
       <div class="oprow" style="margin-top:14px;">
         <button class="btn" id="btn-arquivar" style="min-width:260px;">Arquivar seleccionados no projecto</button>
@@ -443,10 +448,13 @@ $('tbl-emails').addEventListener('change', e => {
 $('btn-contexto-lote').addEventListener('click', () => {
   const valor = $('contexto-lote').value;
   if (!valor) { alert('Escolha um Contexto.'); return; }
-  document.querySelectorAll('.chk-mail:checked').forEach(c => {
+  const selecionados = document.querySelectorAll('.chk-mail:checked');
+  if (!selecionados.length) { alert('Selecione primeiro os emails na primeira coluna.'); return; }
+  selecionados.forEach(c => {
     const campo = document.querySelector(`.ctx-mail[data-i="${c.dataset.i}"]`);
     if (campo) campo.value = valor;
   });
+  showResult(true, `Contexto «${esc(valor)}» aplicado a ${selecionados.length} email(s).`);
 });
 
 $('chk-todos').addEventListener('change', () => {
