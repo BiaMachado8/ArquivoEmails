@@ -37,8 +37,9 @@ else:
 CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".arquivo_emails.json")
 
 INDICE_NOME = "_indice_emails.csv"
+CONTEXTOS_NOME = "_contextos.json"
 CAMPOS_INDICE = ["DataEmail", "Remetente", "Destinatarios", "Assunto",
-                 "Anexos", "Ficheiro", "PastaAnexos", "Contexto", "Links", "Projecto",
+                 "Anexos", "Ficheiro", "PastaAnexos", "Contexto", "Links", "Entidade", "Projecto",
                  "ArquivadoPor", "DataArquivo", "MessageID"]
 CATEGORIA_ARQUIVADO = "Arquivado DEP"
 
@@ -122,6 +123,36 @@ def criar_projecto(nome):
         raise EngineError(f"O projecto «{nome}» já existe.")
     os.makedirs(p)
     return nome
+
+
+CONTEXTOS_PADRAO = ["Informação", "Ação necessária", "Acompanhamento",
+                    "Aprovação", "Decisão", "Reunião", "Contrato",
+                    "Faturação", "Técnico", "Urgente", "Outro"]
+
+
+def ler_contextos():
+    path = os.path.join(_pasta_raiz(), CONTEXTOS_NOME)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            valores = json.load(f)
+        if isinstance(valores, list):
+            return [str(v).strip() for v in valores if str(v).strip()]
+    except Exception:
+        pass
+    return list(CONTEXTOS_PADRAO)
+
+
+def gravar_contextos(contextos):
+    valores = []
+    for contexto in contextos or []:
+        contexto = str(contexto).strip()
+        if contexto and contexto not in valores:
+            valores.append(contexto)
+    if not valores:
+        raise EngineError("Mantenha pelo menos um contexto.")
+    with open(os.path.join(_pasta_raiz(), CONTEXTOS_NOME), "w", encoding="utf-8") as f:
+        json.dump(valores, f, ensure_ascii=False, indent=2)
+    return valores
 
 
 def _pasta_projecto(projecto):
@@ -368,6 +399,7 @@ def listar_emails(entry_id, store_id, limite=50, filtro="", projecto="",
                 "store_id": store_id,
                 "data": _fmt_data(getattr(item, "ReceivedTime", None)),
                 "remetente": remetente,
+                "entidade": _entidade_item(item),
                 "assunto": assunto,
                 "anexos": int(getattr(item.Attachments, "Count", 0) or 0),
                 "arquivado": bool(msgid and msgid in arquivados_no_projecto),
@@ -388,6 +420,61 @@ def _message_id(item):
         return str(pa.GetProperty(PROP_MESSAGE_ID) or "").strip()
     except Exception:
         return ""
+
+
+def _entidade_item(item):
+    try:
+        exchange_user = item.Sender.GetExchangeUser()
+        empresa = str(getattr(exchange_user, "CompanyName", "") or "").strip()
+        if empresa:
+            return empresa
+    except Exception:
+        pass
+    endereco = str(getattr(item, "SenderEmailAddress", "") or "").strip()
+    if "@" in endereco:
+        return endereco.rsplit("@", 1)[1].lower()
+    return ""
+
+
+def _dados_item(item, store_id, metadados=None):
+    msgid = _message_id(item)
+    metadados = metadados or {}
+    return {
+        "entry_id": item.EntryID,
+        "store_id": store_id,
+        "data": _fmt_data(getattr(item, "ReceivedTime", None)),
+        "remetente": str(getattr(item, "SenderName", "") or ""),
+        "entidade": _entidade_item(item),
+        "assunto": str(getattr(item, "Subject", "") or ""),
+        "anexos": int(getattr(item.Attachments, "Count", 0) or 0),
+        "arquivado": bool(msgid and msgid in metadados),
+        "contexto": metadados.get(msgid, {}).get("Contexto", ""),
+        "links": metadados.get(msgid, {}).get("Links", ""),
+    }
+
+
+def selecionar_emails(projecto=""):
+    """Obtém apenas os emails atualmente selecionados no Outlook clássico."""
+    ns = _outlook()
+    try:
+        selection = ns.Application.ActiveExplorer().Selection
+    except Exception as e:
+        raise EngineError("Não foi possível ler a seleção atual do Outlook. "
+                          "Abra uma pasta e seleccione os emails.") from e
+    metadados = {}
+    if projecto:
+        metadados = _metadados_arquivados(_pasta_projecto(projecto))
+    out = []
+    for indice in range(1, selection.Count + 1):
+        try:
+            item = selection.Item(indice)
+            if getattr(item, "Class", None) == OL_MAIL_ITEM:
+                out.append(_dados_item(item, item.StoreID, metadados))
+        except Exception:
+            continue
+    if not out:
+        raise EngineError("Não foram encontrados emails selecionados no Outlook.")
+    return {"emails": out, "varridos": len(out), "truncado": False}
 
 
 def _arquivar_item(item, pasta_projecto, projecto, ja_arquivados,
@@ -420,6 +507,7 @@ def _arquivar_item(item, pasta_projecto, projecto, ja_arquivados,
         "PastaAnexos": pasta_anexos,
         "Contexto": contexto.strip(),
         "Links": links.strip(),
+        "Entidade": _entidade_item(item),
         "Projecto": projecto,
         "ArquivadoPor": os.environ.get("USERNAME", ""),
         "DataArquivo": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -511,12 +599,14 @@ def pesquisar(termo, projecto=None, max_resultados=200):
         for r in _ler_indice(pasta):
             alvo = " ".join([r.get("DataEmail", ""), r.get("Remetente", ""),
                              r.get("Destinatarios", ""), r.get("Assunto", ""),
-                             r.get("Ficheiro", ""), r.get("Contexto", "")]).casefold()
+                             r.get("Ficheiro", ""), r.get("Contexto", ""),
+                             r.get("Entidade", "")]).casefold()
             if termo in alvo:
                 out.append({
                     "projecto": prj,
                     "data": r.get("DataEmail", ""),
                     "remetente": r.get("Remetente", ""),
+                    "entidade": r.get("Entidade", ""),
                     "assunto": r.get("Assunto", ""),
                     "contexto": r.get("Contexto", ""),
                     "pasta_anexos": os.path.join(pasta, r.get("PastaAnexos", ""))

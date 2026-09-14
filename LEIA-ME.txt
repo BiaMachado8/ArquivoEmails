@@ -32,8 +32,8 @@ NOME NORMALIZADO
 
 INDICE (_indice_emails.csv, um por projecto)
 --------------------------------------------
-  DataEmail;Remetente;Destinatarios;Assunto;Anexos;Ficheiro;Projecto;
-  ArquivadoPor;DataArquivo;MessageID
+  DataEmail;Remetente;Destinatarios;Assunto;Anexos;Ficheiro;PastaAnexos;
+  Contexto;Links;Entidade;Projecto;ArquivadoPor;DataArquivo;MessageID
   * separado por ";", codificacao UTF-8 com BOM — abre no Excel PT.
   * o MessageID identifica o email de forma unica: por defeito, um
     email ja registado no indice do projecto e ignorado ao arquivar
@@ -42,6 +42,8 @@ INDICE (_indice_emails.csv, um por projecto)
   * em rede, a escrita no indice repete com espera se o ficheiro
     estiver momentaneamente bloqueado (ex.: aberto no Excel de um
     colega). NAO deixar o indice aberto no Excel enquanto se arquiva.
+  * os anexos do Outlook sao copiados para a pasta Anexos do projecto; links
+    associados ficam registados para consulta posterior.
 
 SALVAGUARDAS
 ------------
@@ -76,8 +78,11 @@ COMO EXECUTAR (desenvolvimento)
 -------------------------------
   1) Duplo clique em iniciar.bat
      (ou:  python app.py  ->  abre http://localhost:8323)
-  2) Em modo janela nativa:  python launcher.py
-     (requer:  python -m pip install pywebview)
+    2) Em modo janela nativa:  python launcher.py
+      (requer:  python -m pip install pywebview)
+      Seleccione os emails no Outlook classico com Ctrl ou Shift e carregue em
+      "Ler emails selecionados no Outlook". A lista de Contextos pode ser
+      editada na aplicacao e e comum a todos os utilizadores.
 
 EMPACOTAMENTO E DISTRIBUICAO
 ----------------------------

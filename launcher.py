@@ -89,9 +89,9 @@ if __name__ == "__main__":
     webview.create_window(
         "Arquivo Emails — Prospectiva",
         f"http://127.0.0.1:{PORT}",
-        width=1180,
+        width=1480,
         height=820,
-        min_size=(960, 640),
+        min_size=(1100, 640),
         js_api=Api(),
     )
     webview.start()

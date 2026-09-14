@@ -65,6 +65,17 @@ def api_projectos():
         return jsonify({"error": str(e)}), 400
 
 
+@app.route("/api/contextos", methods=["GET", "POST"])
+def api_contextos():
+    try:
+        if request.method == "POST":
+            valores = json.loads(request.form.get("contextos") or "[]")
+            return jsonify({"contextos": engine.gravar_contextos(valores)})
+        return jsonify({"contextos": engine.ler_contextos()})
+    except (ValueError, engine.EngineError) as e:
+        return jsonify({"error": str(e)}), 400
+
+
 # ------------------------------------------------------------------ Outlook
 @app.route("/api/outlook/pastas", methods=["POST"])
 def api_pastas():
@@ -89,6 +100,14 @@ def api_emails():
             filtro=request.form.get("filtro") or "",
             projecto=request.form.get("projecto") or "")
         return jsonify(res)
+    except engine.EngineError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/outlook/selecionados", methods=["POST"])
+def api_selecionados():
+    try:
+        return jsonify(engine.selecionar_emails(request.form.get("projecto") or ""))
     except engine.EngineError as e:
         return jsonify({"error": str(e)}), 400
 

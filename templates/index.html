@@ -46,6 +46,10 @@
   .fld textarea { resize: vertical; min-height: 42px; font-family: inherit; }
   .ctx-mail, .link-mail { width: 100%; min-width: 150px; border: 1px solid var(--borda);
                           border-radius: 3px; padding: 5px; font-size: 12px; background: #fff; }
+  .contextos-editor { border: 1px solid var(--borda); border-radius: 4px; padding: 12px;
+                      background: #f8fbfe; margin-bottom: 14px; }
+  .contexto-opcao { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+  .contexto-opcao input { flex: 1; border: 1px solid var(--borda); border-radius: 3px; padding: 6px; }
   .fld.caminho { flex: 1; min-width: 300px; }
 
   .btn { background: var(--azul); color: #fff; border: 1px solid var(--azul); border-radius: 4px;
@@ -132,24 +136,22 @@
 
   <div class="card">
     <h2>2 · Emails no Outlook
-      <i class="info" data-tip="Requer o Outlook clássico aberto (a ligação COM não funciona com o «Novo Outlook»). Carregue em «Ler pastas do Outlook», escolha a pasta (ex.: A Receber), liste os emails e seleccione os que quer arquivar. O Estado é lido do índice do projecto na pasta partilhada: todos os utilizadores veem o mesmo histórico. O arquivo NÃO apaga nem move nada no Outlook — apenas grava cópias .msg no projecto."></i>
+      <i class="info" data-tip="Requer o Outlook clássico aberto. No Outlook, selecione os emails pretendidos com Ctrl ou Shift e depois carregue no botão. O Estado é lido do índice do projecto na pasta partilhada: todos os utilizadores veem o mesmo histórico."></i>
     </h2>
     <div class="body">
       <div class="oprow">
-        <button class="btn" id="btn-pastas">Ler pastas do Outlook</button>
-        <div class="fld" style="flex:1; min-width:280px;">
-          <label>Pasta do Outlook</label>
-          <select id="pasta-outlook"><option value="">— carregar primeiro as pastas —</option></select>
+        <button class="btn" id="btn-selecionados">Ler emails selecionados no Outlook</button>
+        <span class="muted">No Outlook, selecione os emails com Ctrl ou Shift antes de carregar.</span>
+        <button class="btn sec" id="btn-gerir-contextos">Editar contextos</button>
+      </div>
+      <div id="contextos-editor" class="contextos-editor" style="display:none;">
+        <div class="muted">Lista comum a todos os projetos e utilizadores desta pasta raiz.</div>
+        <div id="lista-contextos"></div>
+        <div class="oprow" style="margin:10px 0 0;">
+          <input type="text" id="novo-contexto" placeholder="Novo contexto">
+          <button class="btn sec" id="btn-add-contexto">Adicionar</button>
+          <button class="btn" id="btn-gravar-contextos">Guardar contextos</button>
         </div>
-        <div class="fld" style="width:200px;">
-          <label>Filtro (remetente/assunto)</label>
-          <input type="text" id="filtro" placeholder="opcional">
-        </div>
-        <div class="fld" style="width:110px;">
-          <label>Máx. emails</label>
-          <input type="number" id="limite" value="50" min="1" max="500">
-        </div>
-        <button class="btn sec" id="btn-emails">Listar emails</button>
       </div>
 
       <div class="tbl-wrap" id="tbl-wrap" style="display:none;">
@@ -159,9 +161,11 @@
               <th style="width:30px;"><input type="checkbox" id="chk-todos" title="Seleccionar todos"></th>
               <th style="width:120px;">Data</th>
               <th style="width:180px;">Remetente</th>
+              <th style="width:170px;">Entidade</th>
               <th>Assunto</th>
-              <th style="width:60px;">Anexos</th>
-              <th style="width:90px;">Estado</th>
+              <th style="width:190px;">Contexto</th>
+              <th style="width:190px;">Anexos / link</th>
+              <th style="width:110px;">Estado</th>
             </tr>
           </thead>
           <tbody id="tbl-emails"></tbody>
@@ -208,6 +212,7 @@
               <th style="width:110px;">Projecto</th>
               <th style="width:120px;">Data</th>
               <th style="width:160px;">Remetente</th>
+              <th style="width:150px;">Entidade</th>
               <th>Assunto</th>
               <th style="width:180px;">Contexto</th>
               <th style="width:190px;">Anexos / link</th>
@@ -232,7 +237,8 @@ let emailsListados = [];   // última listagem (para ler as selecções)
 function setBusy(b, text) {
   $('spinner').style.display = b ? 'flex' : 'none';
   $('spinner-text').textContent = text || 'A processar…';
-  ['btn-pastas','btn-emails','btn-arquivar','btn-pesquisar','btn-gravar-raiz']
+  ['btn-selecionados','btn-arquivar','btn-pesquisar','btn-gravar-raiz',
+   'btn-gerir-contextos','btn-gravar-contextos','btn-add-contexto']
     .forEach(id => $(id).disabled = b);
 }
 
@@ -279,6 +285,7 @@ async function gravarRaizELerProjectos(silencioso) {
     const data = await post('/api/projectos', {});
     if (data.error) { showResult(false, data.error); return; }
     preencherProjectos(data.projectos);
+    await carregarContextos();
     if (!silencioso)
       showResult(true, `Pasta raiz gravada — ${data.projectos.length} projecto(s) encontrados.`);
   } catch (e) {
@@ -302,37 +309,57 @@ $('btn-novo-projecto').addEventListener('click', async () => {
 });
 
 /* ------------------------------------------------------- 2 · Outlook ---- */
-$('btn-pastas').addEventListener('click', async () => {
-  setBusy(true, 'A ler pastas do Outlook…');
+let contextos = [];
+async function carregarContextos() {
+  const r = await fetch('/api/contextos');
+  const data = await r.json();
+  if (data.error) throw new Error(data.error);
+  contextos = data.contextos;
+  renderContextos();
+}
+function renderContextos() {
+  $('lista-contextos').innerHTML = contextos.map((valor, i) =>
+    `<div class="contexto-opcao"><input value="${esc(valor)}" data-contexto="${i}">` +
+    `<button class="btn sec btn-remover-contexto" data-contexto="${i}">Remover</button></div>`).join('');
+}
+function opcoesContexto(atual) {
+  return `<option value="">— escolher —</option>` + contextos.map(valor =>
+    `<option value="${esc(valor)}"${valor === atual ? ' selected' : ''}>${esc(valor)}</option>`).join('');
+}
+$('btn-gerir-contextos').addEventListener('click', async () => {
+  const editor = $('contextos-editor');
+  editor.style.display = editor.style.display === 'none' ? 'block' : 'none';
+  if (editor.style.display === 'block') {
+    try { await carregarContextos(); } catch (e) { showResult(false, e.message); }
+  }
+});
+$('btn-add-contexto').addEventListener('click', () => {
+  const valor = $('novo-contexto').value.trim();
+  if (valor && !contextos.includes(valor)) contextos.push(valor);
+  $('novo-contexto').value = '';
+  renderContextos();
+});
+$('lista-contextos').addEventListener('click', e => {
+  const b = e.target.closest('.btn-remover-contexto');
+  if (!b) return;
+  contextos.splice(+b.dataset.contexto, 1);
+  renderContextos();
+});
+$('btn-gravar-contextos').addEventListener('click', async () => {
+  contextos = [...document.querySelectorAll('#lista-contextos input')]
+    .map(el => el.value.trim()).filter(Boolean);
   try {
-    const data = await post('/api/outlook/pastas', {});
+    const data = await post('/api/contextos', { contextos: JSON.stringify(contextos) });
     if (data.error) { showResult(false, data.error); return; }
-    const sel = $('pasta-outlook');
-    sel.innerHTML = '';
-    data.pastas.forEach(p => {
-      const o = document.createElement('option');
-      o.value = p.entry_id + '|' + p.store_id;
-      const indent = '\u00A0\u00A0'.repeat(Math.max(0, p.nivel - 1));
-      o.textContent = indent + p.nome + (p.total != null ? ` (${p.total})` : '');
-      o.title = p.caminho;
-      sel.appendChild(o);
-    });
-    showResult(true, `${data.pastas.length} pasta(s) de correio lidas — escolha a pasta e liste os emails.`);
+    contextos = data.contextos; renderContextos();
+    showResult(true, 'Contextos guardados para todos os utilizadores.');
   } catch (e) { showResult(false, 'Erro de comunicação: ' + e); }
-  finally { setBusy(false); }
 });
 
-async function listarEmails() {
-  const v = $('pasta-outlook').value;
-  if (!v) { alert('Escolha a pasta do Outlook (carregue primeiro em «Ler pastas do Outlook»).'); return; }
-  const [entry_id, store_id] = v.split('|');
+async function listarEmailsSelecionados() {
   setBusy(true, 'A listar emails…');
   try {
-    const data = await post('/api/outlook/emails', {
-      entry_id, store_id,
-      filtro: $('filtro').value, limite: $('limite').value,
-      projecto: $('projecto').value,
-    });
+    const data = await post('/api/outlook/selecionados', { projecto: $('projecto').value });
     if (data.error) { showResult(false, data.error); return; }
     emailsListados = data.emails;
     const tb = $('tbl-emails');
@@ -342,7 +369,7 @@ async function listarEmails() {
       if (m.arquivado) tr.className = 'ja';
       tr.innerHTML =
         `<td><input type="checkbox" class="chk-mail" data-i="${i}"${m.arquivado ? '' : ' checked'}></td>` +
-        `<td>${esc(m.data)}</td><td>${esc(m.remetente)}</td><td>${esc(m.assunto)}</td>` +
+        `<td>${esc(m.data)}</td><td>${esc(m.remetente)}</td><td>${esc(m.entidade)}</td><td>${esc(m.assunto)}</td>` +
         `<td><select class="ctx-mail" data-i="${i}">${opcoesContexto(m.contexto)}</select></td>` +
         `<td><span class="tag">${m.anexos || 0} ficheiro(s)</span>` +
           `<input type="url" class="link-mail" data-i="${i}" value="${esc(m.links || '')}" placeholder="Link opcional"></td>` +
@@ -353,15 +380,13 @@ async function listarEmails() {
     $('chk-todos').checked = false;
     const nota = $('nota-lista');
     nota.style.display = 'block';
-    nota.textContent = `${data.emails.length} email(s) listados` +
-      (data.truncado ? ` — pesquisa limitada aos ${data.varridos} mais recentes; use o filtro para refinar.` : '.');
+    nota.textContent = `${data.emails.length} email(s) selecionados no Outlook.`;
     if (!data.emails.length) showResult(false, 'Nenhum email encontrado com estes critérios.');
     else { $('resultado').style.display = 'none'; }
   } catch (e) { showResult(false, 'Erro de comunicação: ' + e); }
   finally { setBusy(false); }
 }
-$('btn-emails').addEventListener('click', listarEmails);
-$('filtro').addEventListener('keydown', e => { if (e.key === 'Enter') listarEmails(); });
+$('btn-selecionados').addEventListener('click', listarEmailsSelecionados);
 
 $('chk-todos').addEventListener('change', () => {
   document.querySelectorAll('.chk-mail').forEach(c => c.checked = $('chk-todos').checked);
@@ -377,17 +402,6 @@ function renderArquivo(data) {
   for (const e of (data.erros || [])) h += `<div class="aviso">${esc(e)}</div>`;
   showResult(data.arquivados.length > 0 || !data.erros.length, h);
   return true;
-}
-
-const CONTEXTOS = [
-  '— escolher —', 'Informação', 'Ação necessária', 'Acompanhamento',
-  'Aprovação', 'Decisão', 'Reunião', 'Contrato', 'Faturação',
-  'Técnico', 'Urgente', 'Outro'
-];
-function opcoesContexto(atual) {
-  return CONTEXTOS.map(opcao =>
-    `<option value="${esc(opcao === '— escolher —' ? '' : opcao)}"` +
-    `${opcao === atual ? ' selected' : ''}>${esc(opcao)}</option>`).join('');
 }
 
 $('btn-arquivar').addEventListener('click', async () => {
@@ -410,7 +424,7 @@ $('btn-arquivar').addEventListener('click', async () => {
       ids: JSON.stringify(ids), projecto,
       repetidos: $('chk-repetidos').checked ? '1' : '0',
     });
-    if (renderArquivo(data)) listarEmails();   // refresca estados «arquivado»
+    if (renderArquivo(data)) listarEmailsSelecionados();   // refresca estados do arquivo partilhado
   } catch (e) { showResult(false, 'Erro de comunicação: ' + e); }
   finally { setBusy(false); }
 });
@@ -447,7 +461,7 @@ async function pesquisar() {
       const tr = document.createElement('tr');
       tr.innerHTML =
         `<td>${esc(r.projecto)}</td><td>${esc(r.data)}</td>` +
-        `<td>${esc(r.remetente)}</td><td>${esc(r.assunto)}</td>` +
+        `<td>${esc(r.remetente)}</td><td>${esc(r.entidade)}</td><td>${esc(r.assunto)}</td>` +
         `<td>${esc(r.contexto)}</td>` +
         `<td>${r.pasta_anexos
           ? `<button class="btn sec btn-abrir" data-c="${esc(r.pasta_anexos)}" style="padding:4px 10px;font-size:12px;">Abrir pasta</button>`
