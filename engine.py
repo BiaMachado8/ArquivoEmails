@@ -19,6 +19,7 @@ import time
 import unicodedata
 from datetime import datetime
 from urllib.parse import urlparse
+from werkzeug.utils import secure_filename
 
 
 class EngineError(Exception):
@@ -219,6 +220,18 @@ def _guardar_anexos(item, pasta_projecto, nome_email):
         nome = os.path.basename(str(getattr(anexo, "FileName", "anexo") or "anexo"))
         _ = _caminho_livre(pasta, nome)
         anexo.SaveAsFile(_)
+    return os.path.relpath(pasta, pasta_projecto)
+
+
+def _guardar_ficheiros(ficheiros, pasta_projecto, nome_email):
+    if not ficheiros:
+        return ""
+    pasta = os.path.join(pasta_projecto, "Anexos", os.path.splitext(nome_email)[0])
+    os.makedirs(pasta, exist_ok=True)
+    for ficheiro in ficheiros:
+        nome = secure_filename(os.path.basename(ficheiro.filename or ""))
+        if nome:
+            ficheiro.save(_caminho_livre(pasta, nome))
     return os.path.relpath(pasta, pasta_projecto)
 
 
@@ -480,7 +493,7 @@ def selecionar_emails(projecto=""):
 
 def _arquivar_item(item, pasta_projecto, projecto, ja_arquivados,
                    permitir_repetidos, marcar_categoria, contexto="", links="",
-                   entidade=""):
+                   entidade="", guardar_anexos=True, ficheiros=None):
     """Arquiva um MailItem; devolve ('ok'|'repetido', info)."""
     msgid = _message_id(item)
     if msgid and not permitir_repetidos and msgid in ja_arquivados:
@@ -498,7 +511,11 @@ def _arquivar_item(item, pasta_projecto, projecto, ja_arquivados,
         raise EngineError("O link do anexo deve começar por http:// ou https://.")
     caminho = _caminho_livre(pasta_projecto, nome)
     item.SaveAs(caminho, OL_FORMATO_MSG)
-    pasta_anexos = _guardar_anexos(item, pasta_projecto, os.path.basename(caminho))
+    pasta_anexos = ""
+    if guardar_anexos:
+        pasta_anexos = _guardar_anexos(item, pasta_projecto, os.path.basename(caminho))
+    pasta_anexos = _guardar_ficheiros(ficheiros or [], pasta_projecto,
+                                      os.path.basename(caminho)) or pasta_anexos
     _registar_indice(pasta_projecto, {
         "DataEmail": _fmt_data(data),
         "Remetente": remetente,
@@ -551,7 +568,9 @@ def arquivar_emails(ids, projecto, permitir_repetidos=False,
                                           marcar_categoria,
                                           ref.get("contexto", ""),
                                           ref.get("links", ""),
-                                          ref.get("entidade", ""))
+                                          ref.get("entidade", ""),
+                                          ref.get("guardar_anexos", True),
+                                          ref.get("ficheiros", []))
             (arquivados if estado == "ok" else repetidos).append(info)
         except EngineError:
             raise

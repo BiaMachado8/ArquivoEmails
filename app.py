@@ -120,6 +120,9 @@ def api_arquivar():
         except ValueError:
             raise engine.EngineError("Pedido inválido — volte a listar os "
                                      "emails e repita.")
+        for ref in ids:
+            linha = int(ref.get("linha", -1))
+            ref["ficheiros"] = request.files.getlist(f"ficheiros_{linha}")
         res = engine.arquivar_emails(
             ids,
             request.form.get("projecto") or "",
