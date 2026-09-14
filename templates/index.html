@@ -118,7 +118,7 @@
 
   <div class="card">
     <h2>2 · Emails no Outlook
-      <i class="info" data-tip="Requer o Outlook clássico aberto (a ligação COM não funciona com o «Novo Outlook»). Carregue em «Ler pastas do Outlook», escolha a pasta (ex.: A Receber), liste os emails e seleccione os que quer arquivar. Os emails já arquivados ficam marcados no Outlook com a categoria «Arquivado DEP» e aparecem assinalados na lista. O arquivo NÃO apaga nem move nada no Outlook — apenas grava cópias .msg no projecto."></i>
+      <i class="info" data-tip="Requer o Outlook clássico aberto (a ligação COM não funciona com o «Novo Outlook»). Carregue em «Ler pastas do Outlook», escolha a pasta (ex.: A Receber), liste os emails e seleccione os que quer arquivar. O Estado é lido do índice do projecto na pasta partilhada: todos os utilizadores veem o mesmo histórico. O arquivo NÃO apaga nem move nada no Outlook — apenas grava cópias .msg no projecto."></i>
     </h2>
     <div class="body">
       <div class="oprow">
@@ -317,6 +317,7 @@ async function listarEmails() {
     const data = await post('/api/outlook/emails', {
       entry_id, store_id,
       filtro: $('filtro').value, limite: $('limite').value,
+      projecto: $('projecto').value,
     });
     if (data.error) { showResult(false, data.error); return; }
     emailsListados = data.emails;

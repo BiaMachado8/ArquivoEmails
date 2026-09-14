@@ -86,7 +86,8 @@ def api_emails():
             (request.form.get("entry_id") or "").strip(),
             (request.form.get("store_id") or "").strip(),
             limite=limite,
-            filtro=request.form.get("filtro") or "")
+            filtro=request.form.get("filtro") or "",
+            projecto=request.form.get("projecto") or "")
         return jsonify(res)
     except engine.EngineError as e:
         return jsonify({"error": str(e)}), 400

@@ -318,11 +318,14 @@ def _fmt_data(dt):
         return str(dt or "")
 
 
-def listar_emails(entry_id, store_id, limite=50, filtro="",
+def listar_emails(entry_id, store_id, limite=50, filtro="", projecto="",
                   max_varridos=1500):
     """Emails da pasta, do mais recente para o mais antigo. O filtro é
     aplicado ao remetente e ao assunto (sem distinguir maiúsculas)."""
     ns = _outlook()
+    arquivados_no_projecto = set()
+    if projecto:
+        arquivados_no_projecto = _msgids_arquivados(_pasta_projecto(projecto))
     try:
         pasta = ns.GetFolderFromID(entry_id, store_id)
     except Exception:
@@ -345,6 +348,7 @@ def listar_emails(entry_id, store_id, limite=50, filtro="",
                     and filtro not in assunto.casefold():
                 continue
             cats = str(getattr(item, "Categories", "") or "")
+            msgid = _message_id(item)
             out.append({
                 "entry_id": item.EntryID,
                 "store_id": store_id,
@@ -352,7 +356,7 @@ def listar_emails(entry_id, store_id, limite=50, filtro="",
                 "remetente": remetente,
                 "assunto": assunto,
                 "anexos": int(getattr(item.Attachments, "Count", 0) or 0),
-                "arquivado": CATEGORIA_ARQUIVADO in cats,
+                "arquivado": bool(msgid and msgid in arquivados_no_projecto),
             })
         except Exception:
             continue
