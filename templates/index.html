@@ -70,6 +70,8 @@
                  padding: 5px; text-align: left; }
   .filter-menu button { display: block; width: 100%; border: 0; background: #fff; padding: 6px 8px; text-align: left; cursor: pointer; }
   .filter-menu button:hover { background: var(--azul-claro); }
+  .filter-menu label { display: block; padding: 5px 8px; white-space: nowrap; cursor: pointer; }
+  .filter-menu .filter-apply { background: var(--azul); color: #fff; margin-top: 5px; text-align: center; }
   .anexos-lista { margin-top: 5px; font-size: 11px; }
   .anexos-lista label { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .anexos-todos { display: block; margin: 5px 0; font-size: 11px; color: var(--azul); }
@@ -576,8 +578,8 @@ function filtrarResultados() {
   const linhas = [...document.querySelectorAll('.res-row')];
   let visiveis = 0;
   linhas.forEach(linha => {
-    const mostra = Object.entries(filtrosResultados).every(([campo, valor]) =>
-      !valor || linha.dataset[campo] === valor);
+    const mostra = Object.entries(filtrosResultados).every(([campo, valores]) =>
+      !valores.length || valores.includes(linha.dataset[campo] || ''));
     linha.style.display = mostra ? '' : 'none';
     if (mostra) visiveis += 1;
   });
@@ -590,21 +592,40 @@ function abrirFiltro(campo, botao) {
     .map(linha => linha.dataset[campo] || '').filter(Boolean))].sort();
   const menu = document.createElement('div');
   menu.className = 'filter-menu';
+  const selecionados = new Set(filtrosResultados[campo] || []);
   const todos = document.createElement('button');
-  todos.textContent = filtrosResultados[campo] ? 'Limpar filtro' : 'Todos';
+  todos.textContent = 'Todos';
   todos.onclick = () => { delete filtrosResultados[campo]; menu.remove(); filtrarResultados(); };
   menu.appendChild(todos);
   valores.forEach(valor => {
-    const item = document.createElement('button');
-    item.textContent = valor;
-    item.onclick = () => { filtrosResultados[campo] = valor; menu.remove(); filtrarResultados(); };
+    const item = document.createElement('label');
+    const caixa = document.createElement('input');
+    caixa.type = 'checkbox';
+    caixa.checked = selecionados.has(valor);
+    caixa.addEventListener('change', () => {
+      if (caixa.checked) selecionados.add(valor);
+      else selecionados.delete(valor);
+    });
+    item.append(caixa, ` ${valor}`);
     menu.appendChild(item);
   });
+  const aplicar = document.createElement('button');
+  aplicar.className = 'filter-apply';
+  aplicar.textContent = 'Aplicar';
+  aplicar.onclick = () => {
+    const lista = [...selecionados];
+    if (lista.length) filtrosResultados[campo] = lista;
+    else delete filtrosResultados[campo];
+    menu.remove();
+    filtrarResultados();
+  };
+  menu.appendChild(aplicar);
   document.body.appendChild(menu);
   const rect = botao.getBoundingClientRect();
   menu.style.left = `${rect.left}px`;
   menu.style.top = `${rect.bottom + 3}px`;
   menu.style.display = 'block';
+  menu.addEventListener('click', e => e.stopPropagation());
 }
 $('btn-pesquisar').addEventListener('click', pesquisar);
 $('termo').addEventListener('keydown', e => { if (e.key === 'Enter') pesquisar(); });
