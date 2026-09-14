@@ -649,7 +649,7 @@ $('btn-abrir-projecto').addEventListener('click', async () => {
   const prj = $('projecto').value;
   if (!raiz || !prj) { alert('Escolha a pasta raiz e o projecto (secção 1).'); return; }
   const sep = raiz.includes('/') && !raiz.includes('\\') ? '/' : '\\';
-  const data = await post('/api/abrir', { caminho: raiz.replace(/[\\/]+$/, '') + sep + prj + sep + '02-Geral' + sep + '06-Email' });
+  const data = await post('/api/abrir', { caminho: raiz.replace(/[\\/]+$/, '') + sep + prj + sep + '02-Geral' + sep + '07-Email' });
   if (data.error) showResult(false, data.error);
 });
 

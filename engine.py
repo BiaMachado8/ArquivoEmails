@@ -205,7 +205,7 @@ def _pasta_projecto(projecto):
 
 
 def _pasta_email_projecto(projecto, criar=True):
-    pasta = os.path.join(_pasta_projecto(projecto), "02-Geral", "06-Email")
+    pasta = os.path.join(_pasta_projecto(projecto), "02-Geral", "07-Email")
     if criar:
         os.makedirs(pasta, exist_ok=True)
     return pasta
@@ -213,7 +213,7 @@ def _pasta_email_projecto(projecto, criar=True):
 
 def _pastas_consulta_projecto(projecto):
     projeto = _pasta_projecto(projecto)
-    email = os.path.join(projeto, "02-Geral", "06-Email")
+    email = os.path.join(projeto, "02-Geral", "07-Email")
     pastas = [email] if os.path.isdir(email) else []
     legado = projeto
     if os.path.isfile(os.path.join(legado, INDICE_NOME)):
