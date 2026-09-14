@@ -58,8 +58,9 @@ def api_config():
 @app.route("/api/projectos", methods=["GET", "POST"])
 def api_projectos():
     try:
-        if request.method == "POST":
-            engine.criar_projecto(request.form.get("nome"))
+        nome = (request.form.get("nome") or "").strip()
+        if request.method == "POST" and nome:
+            engine.criar_projecto(nome)
         return jsonify({"projectos": engine.listar_projectos()})
     except engine.EngineError as e:
         return jsonify({"error": str(e)}), 400
