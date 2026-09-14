@@ -185,6 +185,13 @@ def gravar_entidade(remetente, entidade):
         json.dump(valores, f, ensure_ascii=False, indent=2)
 
 
+def _entidade_memorizada(item):
+    valores = ler_entidades()
+    nome = str(getattr(item, "SenderName", "") or "").strip().casefold()
+    endereco = str(getattr(item, "SenderEmailAddress", "") or "").strip().casefold()
+    return valores.get(endereco) or valores.get(nome) or _entidade_item(item)
+
+
 def _pasta_projecto(projecto):
     raiz = _pasta_raiz()
     p = os.path.abspath(os.path.join(raiz, projecto or ""))
@@ -532,7 +539,8 @@ def _dados_item(item, store_id, metadados=None):
     metadados = metadados or {}
     data = getattr(item, "ReceivedTime", None)
     remetente = str(getattr(item, "SenderName", "") or "")
-    entidade = ler_entidades().get(remetente.casefold(), _entidade_item(item))
+    entidade = (metadados.get(msgid, {}).get("Entidade") or
+                _entidade_memorizada(item))
     anexos = [{"indice": i, "nome": str(getattr(item.Attachments.Item(i), "FileName", "anexo") or "anexo")}
               for i in range(1, int(getattr(item.Attachments, "Count", 0) or 0) + 1)]
     return {
@@ -624,6 +632,9 @@ def _arquivar_item(item, pasta_projecto, projecto, ja_arquivados,
         "MessageID": msgid,
     })
     gravar_entidade(remetente, entidade or _entidade_item(item))
+    endereco = str(getattr(item, "SenderEmailAddress", "") or "").strip()
+    if endereco and entidade:
+        gravar_entidade(endereco, entidade)
     if msgid:
         ja_arquivados.add(msgid)
     if marcar_categoria:

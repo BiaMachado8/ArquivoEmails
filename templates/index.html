@@ -60,6 +60,8 @@
                    border-radius: 3px; padding: 5px; font-size: 12px; background: #fff; }
   .anexo-option { display: flex; align-items: center; gap: 5px; white-space: nowrap; font-size: 12px; }
   .ficheiros-mail { display: block; width: 180px; max-width: 100%; margin-top: 5px; font-size: 11px; }
+  .filtro-coluna { width: 100%; min-width: 85px; border: 1px solid var(--borda); border-radius: 3px;
+                   padding: 4px; font-size: 11px; margin-top: 4px; }
   .anexos-lista { margin-top: 5px; font-size: 11px; }
   .anexos-lista label { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .fld.caminho { flex: 1; min-width: 300px; }
@@ -222,13 +224,13 @@
         <table class="search-table">
           <thead>
             <tr>
-              <th style="width:120px;">Data</th>
-              <th style="width:160px;">Remetente</th>
-              <th style="width:150px;">Entidade</th>
-              <th>Assunto</th>
-              <th style="width:180px;">Contexto</th>
+              <th style="width:120px;">Data<br><input class="filtro-coluna" data-filtro="data" placeholder="filtrar"></th>
+              <th style="width:160px;">Remetente<br><input class="filtro-coluna" data-filtro="remetente" placeholder="filtrar"></th>
+              <th style="width:150px;">Entidade<br><input class="filtro-coluna" data-filtro="entidade" placeholder="filtrar"></th>
+              <th>Assunto<br><input class="filtro-coluna" data-filtro="assunto" placeholder="filtrar"></th>
+              <th style="width:180px;">Contexto<br><input class="filtro-coluna" data-filtro="contexto" placeholder="filtrar"></th>
               <th style="width:190px;">Anexos / link</th>
-              <th style="width:110px;">Arquivado por</th>
+              <th style="width:110px;">Arquivado por<br><input class="filtro-coluna" data-filtro="arquivado_por" placeholder="filtrar"></th>
               <th style="width:130px;">Abrir</th>
             </tr>
           </thead>
@@ -335,13 +337,21 @@ function renderContextos() {
     `<button class="btn sec btn-remover-contexto" data-contexto="${i}">Remover</button></div>`).join('');
 }
 function opcoesContexto(atual) {
-  function preencherContextoLote() {
-    $('contexto-lote').innerHTML = `<option value="">Contexto para os selecionados</option>` +
-      contextos.map(valor => `<option value="${esc(valor)}">${esc(valor)}</option>`).join('');
-  }
   const lista = atual && !contextos.includes(atual) ? [atual, ...contextos] : contextos;
   return `<option value="">— escolher —</option>` + lista.map(valor =>
     `<option value="${esc(valor)}"${valor === atual ? ' selected' : ''}>${esc(valor)}</option>`).join('');
+}
+function atualizarDropdownsContexto() {
+  document.querySelectorAll('.ctx-mail').forEach(campo => {
+    const atual = campo.value;
+    campo.innerHTML = opcoesContexto(atual);
+    campo.value = atual;
+  });
+  preencherContextoLote();
+}
+function preencherContextoLote() {
+  $('contexto-lote').innerHTML = `<option value="">Contexto para os selecionados</option>` +
+    contextos.map(valor => `<option value="${esc(valor)}">${esc(valor)}</option>`).join('');
 }
 $('btn-gerir-contextos').addEventListener('click', async () => {
   const editor = $('contextos-editor');
@@ -355,7 +365,7 @@ $('btn-add-contexto').addEventListener('click', () => {
   if (valor && !contextos.includes(valor)) contextos.push(valor);
   $('novo-contexto').value = '';
   renderContextos();
-  preencherContextoLote();
+  atualizarDropdownsContexto();
 });
 $('lista-contextos').addEventListener('click', e => {
   const b = e.target.closest('.btn-remover-contexto');
@@ -369,7 +379,7 @@ $('btn-gravar-contextos').addEventListener('click', async () => {
   try {
     const data = await post('/api/contextos', { contextos: JSON.stringify(contextos) });
     if (data.error) { showResult(false, data.error); return; }
-    contextos = data.contextos; renderContextos();
+    contextos = data.contextos; renderContextos(); atualizarDropdownsContexto();
     showResult(true, 'Contextos guardados para todos os utilizadores.');
   } catch (e) { showResult(false, 'Erro de comunicação: ' + e); }
 });
@@ -398,6 +408,7 @@ async function listarEmailsSelecionados() {
         `<td><div class="anexos-lista">${m.anexos.length ? m.anexos.map(a =>
           `<label title="${esc(a.nome)}"><input type="checkbox" class="anexo-mail" data-i="${i}" data-anexo="${a.indice}" checked> ${esc(a.nome)}</label>`).join('')
           : '<span class="muted">Sem anexos</span>'}</div>` +
+          `${m.anexos.length ? `<button type="button" class="btn sec btn-anexos-todos" data-i="${i}">Desselecionar todos</button>` : ''}` +
           `<input class="pasta-anexos-mail" data-i="${i}" value="${esc(m.pasta_anexos_sugerida)}" title="Nome da pasta dos anexos">` +
           `<input type="file" class="ficheiros-mail" data-i="${i}" multiple title="Adicionar ficheiros próprios">` +
           `<input type="url" class="link-mail" data-i="${i}" value="${esc(m.links || '')}" placeholder="Link opcional"></td>` +
@@ -415,6 +426,14 @@ async function listarEmailsSelecionados() {
   finally { setBusy(false); }
 }
 $('btn-selecionados').addEventListener('click', listarEmailsSelecionados);
+$('tbl-emails').addEventListener('click', e => {
+  const botao = e.target.closest('.btn-anexos-todos');
+  if (!botao) return;
+  const anexos = document.querySelectorAll(`.anexo-mail[data-i="${botao.dataset.i}"]`);
+  const todosMarcados = [...anexos].every(campo => campo.checked);
+  anexos.forEach(campo => campo.checked = !todosMarcados);
+  botao.textContent = todosMarcados ? 'Selecionar todos' : 'Desselecionar todos';
+});
 $('btn-contexto-lote').addEventListener('click', () => {
   const valor = $('contexto-lote').value;
   if (!valor) { alert('Escolha um Contexto.'); return; }
@@ -520,6 +539,9 @@ async function pesquisar() {
         `<td>${r.existe
             ? `<button class="btn sec btn-abrir" data-c="${esc(r.caminho)}" style="padding:4px 10px;font-size:12px;">Abrir</button>`
             : '<span class="muted">ficheiro em falta</span>'}</td>`;
+          tr.className = 'res-row';
+          ['data', 'remetente', 'entidade', 'assunto', 'contexto', 'arquivado_por']
+            .forEach(campo => { tr.dataset[campo] = String(r[campo] || '').toLowerCase(); });
       tb.appendChild(tr);
     });
     $('res-wrap').style.display = data.resultados.length ? 'block' : 'none';
@@ -527,11 +549,31 @@ async function pesquisar() {
     nota.style.display = 'block';
     nota.textContent = `${data.resultados.length} resultado(s)` +
       (data.truncado ? ' — lista truncada; refine a pesquisa.' : '.');
+    filtrarResultados();
   } catch (e) { showResult(false, 'Erro de comunicação: ' + e); }
   finally { setBusy(false); }
 }
+function filtrarResultados() {
+  const filtros = {};
+  document.querySelectorAll('.filtro-coluna').forEach(campo => {
+    filtros[campo.dataset.filtro] = campo.value.trim().toLowerCase();
+  });
+  const linhas = [...document.querySelectorAll('.res-row')];
+  let visiveis = 0;
+  linhas.forEach(linha => {
+    const mostra = Object.entries(filtros).every(([campo, valor]) =>
+      !valor || (linha.dataset[campo] || '').includes(valor));
+    linha.style.display = mostra ? '' : 'none';
+    if (mostra) visiveis += 1;
+  });
+  $('nota-res').textContent = `${visiveis} resultado(s) visível(eis).`;
+}
 $('btn-pesquisar').addEventListener('click', pesquisar);
 $('termo').addEventListener('keydown', e => { if (e.key === 'Enter') pesquisar(); });
+document.querySelectorAll('.filtro-coluna').forEach(campo => {
+  campo.addEventListener('input', filtrarResultados);
+  campo.addEventListener('click', e => e.stopPropagation());
+});
 
 $('tbl-res').addEventListener('click', async e => {
   const b = e.target.closest('.btn-abrir');
