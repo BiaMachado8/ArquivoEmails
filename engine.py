@@ -85,6 +85,17 @@ def gravar_config(pasta_raiz):
     if pasta_raiz:
         nome = os.path.basename(os.path.normpath(pasta_raiz))
         conteudo = os.listdir(pasta_raiz)
+        caminho = os.path.normpath(pasta_raiz)
+        if nome.casefold() == "07-email":
+            geral = os.path.dirname(caminho)
+            if os.path.basename(geral).casefold() == "02-geral":
+                pasta_raiz = os.path.dirname(os.path.dirname(geral))
+        elif nome.casefold() == "02-geral" and os.path.isdir(
+                os.path.join(caminho, "07-Email")):
+            pasta_raiz = os.path.dirname(os.path.dirname(caminho))
+        if pasta_raiz != caminho:
+            nome = os.path.basename(os.path.normpath(pasta_raiz))
+            conteudo = os.listdir(pasta_raiz)
         e_projeto = (os.path.isfile(os.path.join(pasta_raiz, INDICE_NOME))
                      or os.path.isdir(os.path.join(pasta_raiz, "Anexos"))
                      or any(str(f).lower().endswith(".msg") for f in conteudo))
@@ -566,6 +577,10 @@ def selecionar_emails(projecto=""):
     except Exception as e:
         raise EngineError("Não foi possível ler a seleção atual do Outlook. "
                           "Abra uma pasta e seleccione os emails.") from e
+    if not selection.Count:
+        raise EngineError("Não há emails selecionados. No Outlook, abra a lista "
+                          "de uma pasta de correio e selecione os emails com "
+                          "Ctrl ou Shift antes de carregar novamente.")
     metadados = {}
     if projecto:
         metadados = _metadados_historico_projecto(projecto)
