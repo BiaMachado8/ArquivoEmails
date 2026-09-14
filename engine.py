@@ -39,6 +39,7 @@ CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".arquivo_emails.json")
 
 INDICE_NOME = "_indice_emails.csv"
 CONTEXTOS_NOME = "_contextos.json"
+ENTIDADES_NOME = "_entidades.json"
 CAMPOS_INDICE = ["DataEmail", "Remetente", "Destinatarios", "Assunto",
                  "Anexos", "Ficheiro", "PastaAnexos", "Contexto", "Links", "Entidade", "Projecto",
                  "ArquivadoPor", "DataArquivo", "MessageID"]
@@ -164,6 +165,26 @@ def gravar_contextos(contextos):
     return valores
 
 
+def ler_entidades():
+    try:
+        with open(os.path.join(_pasta_raiz(), ENTIDADES_NOME), "r", encoding="utf-8") as f:
+            valores = json.load(f)
+        return valores if isinstance(valores, dict) else {}
+    except Exception:
+        return {}
+
+
+def gravar_entidade(remetente, entidade):
+    remetente = (remetente or "").strip()
+    entidade = (entidade or "").strip()
+    if not remetente or not entidade:
+        return
+    valores = ler_entidades()
+    valores[remetente.casefold()] = entidade
+    with open(os.path.join(_pasta_raiz(), ENTIDADES_NOME), "w", encoding="utf-8") as f:
+        json.dump(valores, f, ensure_ascii=False, indent=2)
+
+
 def _pasta_projecto(projecto):
     raiz = _pasta_raiz()
     p = os.path.abspath(os.path.join(raiz, projecto or ""))
@@ -231,10 +252,31 @@ def _guardar_anexos(item, pasta_projecto, nome_email):
     return os.path.relpath(pasta, pasta_projecto)
 
 
-def _guardar_ficheiros(ficheiros, pasta_projecto, nome_email):
+def _guardar_anexos_selecionados(item, pasta_projecto, nome_pasta, indices):
+    anexos = getattr(item, "Attachments", None)
+    indices = {int(i) for i in (indices or [])}
+    if not indices:
+        return ""
+    pasta = os.path.join(pasta_projecto, "Anexos", nome_pasta)
+    os.makedirs(pasta, exist_ok=True)
+    for indice in sorted(indices):
+        if indice < 1 or indice > int(getattr(anexos, "Count", 0) or 0):
+            continue
+        anexo = anexos.Item(indice)
+        nome = os.path.basename(str(getattr(anexo, "FileName", "anexo") or "anexo"))
+        anexo.SaveAsFile(_caminho_livre(pasta, nome))
+    return os.path.relpath(pasta, pasta_projecto) if os.listdir(pasta) else ""
+
+
+def _pasta_anexos_sugerida(data, remetente, assunto):
+    base = nome_normalizado(data, remetente, assunto).removesuffix(".msg")
+    return base[:100]
+
+
+def _guardar_ficheiros(ficheiros, pasta_projecto, nome_pasta):
     if not ficheiros:
         return ""
-    pasta = os.path.join(pasta_projecto, "Anexos", os.path.splitext(nome_email)[0])
+    pasta = os.path.join(pasta_projecto, "Anexos", nome_pasta)
     os.makedirs(pasta, exist_ok=True)
     for ficheiro in ficheiros:
         nome = secure_filename(os.path.basename(ficheiro.filename or ""))
@@ -453,21 +495,27 @@ def _entidade_item(item):
         pass
     endereco = str(getattr(item, "SenderEmailAddress", "") or "").strip()
     if "@" in endereco:
-        return endereco.rsplit("@", 1)[1].lower()
+        return endereco.rsplit("@", 1)[1].split(".", 1)[0].lower()
     return ""
 
 
 def _dados_item(item, store_id, metadados=None):
     msgid = _message_id(item)
     metadados = metadados or {}
+    data = getattr(item, "ReceivedTime", None)
+    remetente = str(getattr(item, "SenderName", "") or "")
+    entidade = ler_entidades().get(remetente.casefold(), _entidade_item(item))
+    anexos = [{"indice": i, "nome": str(getattr(item.Attachments.Item(i), "FileName", "anexo") or "anexo")}
+              for i in range(1, int(getattr(item.Attachments, "Count", 0) or 0) + 1)]
     return {
         "entry_id": item.EntryID,
         "store_id": store_id,
-        "data": _fmt_data(getattr(item, "ReceivedTime", None)),
-        "remetente": str(getattr(item, "SenderName", "") or ""),
-        "entidade": _entidade_item(item),
+        "data": _fmt_data(data),
+        "remetente": remetente,
+        "entidade": entidade,
         "assunto": str(getattr(item, "Subject", "") or ""),
-        "anexos": int(getattr(item.Attachments, "Count", 0) or 0),
+        "anexos": anexos,
+        "pasta_anexos_sugerida": _pasta_anexos_sugerida(data, remetente, str(getattr(item, "Subject", "") or "")),
         "arquivado": bool(msgid and msgid in metadados),
         "contexto": metadados.get(msgid, {}).get("Contexto", ""),
         "links": metadados.get(msgid, {}).get("Links", ""),
@@ -501,7 +549,8 @@ def selecionar_emails(projecto=""):
 
 def _arquivar_item(item, pasta_projecto, projecto, ja_arquivados,
                    permitir_repetidos, marcar_categoria, contexto="", links="",
-                   entidade="", guardar_anexos=True, ficheiros=None):
+                   entidade="", guardar_anexos=True, anexos_selecionados=None,
+                   nome_pasta_anexos="", ficheiros=None):
     """Arquiva um MailItem; devolve ('ok'|'repetido', info)."""
     msgid = _message_id(item)
     if msgid and not permitir_repetidos and msgid in ja_arquivados:
@@ -520,10 +569,16 @@ def _arquivar_item(item, pasta_projecto, projecto, ja_arquivados,
     caminho = _caminho_livre(pasta_projecto, nome)
     item.SaveAs(caminho, OL_FORMATO_MSG)
     pasta_anexos = ""
+    prefixo_data = data.strftime("%Y-%m-%d") + "_"
+    nome_pasta = nome_pasta_anexos.strip() or os.path.splitext(os.path.basename(caminho))[0]
+    nome_pasta = re.sub(r"[\\/:*?\"<>|]", "_", nome_pasta).strip(" .")[:120]
+    nome_pasta = prefixo_data + nome_pasta.removeprefix(prefixo_data)
+    nome_pasta = re.sub(r"[\\/:*?\"<>|]", "_", nome_pasta).strip(" .")[:120]
     if guardar_anexos:
-        pasta_anexos = _guardar_anexos(item, pasta_projecto, os.path.basename(caminho))
+        pasta_anexos = _guardar_anexos_selecionados(
+            item, pasta_projecto, nome_pasta, anexos_selecionados)
     pasta_anexos = _guardar_ficheiros(ficheiros or [], pasta_projecto,
-                                      os.path.basename(caminho)) or pasta_anexos
+                                      nome_pasta) or pasta_anexos
     _registar_indice(pasta_projecto, {
         "DataEmail": _fmt_data(data),
         "Remetente": remetente,
@@ -540,6 +595,7 @@ def _arquivar_item(item, pasta_projecto, projecto, ja_arquivados,
         "DataArquivo": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "MessageID": msgid,
     })
+    gravar_entidade(remetente, entidade or _entidade_item(item))
     if msgid:
         ja_arquivados.add(msgid)
     if marcar_categoria:
@@ -578,6 +634,8 @@ def arquivar_emails(ids, projecto, permitir_repetidos=False,
                                           ref.get("links", ""),
                                           ref.get("entidade", ""),
                                           ref.get("guardar_anexos", True),
+                                          ref.get("anexos_selecionados", []),
+                                          ref.get("nome_pasta_anexos", ""),
                                           ref.get("ficheiros", []))
             (arquivados if estado == "ok" else repetidos).append(info)
         except EngineError:
@@ -620,8 +678,6 @@ def arquivar_ficheiros(caminhos, projecto, permitir_repetidos=False,
 def pesquisar(termo, projecto=None, max_resultados=200):
     """Pesquisa nos índices (todos os projectos, ou apenas um)."""
     termo = (termo or "").strip().casefold()
-    if not termo:
-        raise EngineError("Indique o texto a pesquisar.")
     raiz = _pasta_raiz()
     projectos = [projecto] if projecto else listar_projectos()
     out = []

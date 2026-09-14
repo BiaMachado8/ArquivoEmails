@@ -55,6 +55,8 @@
                    border-radius: 3px; padding: 5px; font-size: 12px; background: #fff; }
   .anexo-option { display: flex; align-items: center; gap: 5px; white-space: nowrap; font-size: 12px; }
   .ficheiros-mail { display: block; width: 180px; max-width: 100%; margin-top: 5px; font-size: 11px; }
+  .anexos-lista { margin-top: 5px; font-size: 11px; }
+  .anexos-lista label { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .fld.caminho { flex: 1; min-width: 300px; }
 
   .btn { background: var(--azul); color: #fff; border: 1px solid var(--azul); border-radius: 4px;
@@ -178,6 +180,11 @@
       </div>
       <div class="muted" id="nota-lista" style="margin-top:8px; display:none;"></div>
 
+      <div class="oprow" style="margin-top:10px;">
+        <select id="contexto-lote" class="ctx-mail" style="width:230px;"><option value="">Contexto para os selecionados</option></select>
+        <button class="btn sec" id="btn-contexto-lote">Aplicar aos emails selecionados</button>
+      </div>
+
       <div class="oprow" style="margin-top:14px;">
         <button class="btn" id="btn-arquivar" style="min-width:260px;">Arquivar seleccionados no projecto</button>
         <button class="btn sec" id="btn-msg-files" style="display:none;" title="Alternativa sem lista: escolher ficheiros .msg já guardados no disco (ex.: arrastados do Outlook para uma pasta) e arquivá-los no projecto com nome normalizado.">Arquivar ficheiros .msg…</button>
@@ -243,7 +250,8 @@ function setBusy(b, text) {
   $('spinner').style.display = b ? 'flex' : 'none';
   $('spinner-text').textContent = text || 'A processar…';
   ['btn-selecionados','btn-arquivar','btn-pesquisar','btn-gravar-raiz',
-   'btn-gerir-contextos','btn-gravar-contextos','btn-add-contexto']
+    'btn-gerir-contextos','btn-gravar-contextos','btn-add-contexto',
+    'btn-contexto-lote']
     .forEach(id => $(id).disabled = b);
 }
 
@@ -331,6 +339,10 @@ function renderContextos() {
     `<button class="btn sec btn-remover-contexto" data-contexto="${i}">Remover</button></div>`).join('');
 }
 function opcoesContexto(atual) {
+  function preencherContextoLote() {
+    $('contexto-lote').innerHTML = `<option value="">Contexto para os selecionados</option>` +
+      contextos.map(valor => `<option value="${esc(valor)}">${esc(valor)}</option>`).join('');
+  }
   const lista = atual && !contextos.includes(atual) ? [atual, ...contextos] : contextos;
   return `<option value="">— escolher —</option>` + lista.map(valor =>
     `<option value="${esc(valor)}"${valor === atual ? ' selected' : ''}>${esc(valor)}</option>`).join('');
@@ -347,6 +359,7 @@ $('btn-add-contexto').addEventListener('click', () => {
   if (valor && !contextos.includes(valor)) contextos.push(valor);
   $('novo-contexto').value = '';
   renderContextos();
+  preencherContextoLote();
 });
 $('lista-contextos').addEventListener('click', e => {
   const b = e.target.closest('.btn-remover-contexto');
@@ -386,8 +399,10 @@ async function listarEmailsSelecionados() {
         `<td><input class="entidade-mail" data-i="${i}" value="${esc(m.entidade || '')}" placeholder="Empresa"></td>` +
         `<td>${esc(m.assunto)}</td>` +
         `<td><select class="ctx-mail" data-i="${i}">${opcoesContexto(m.contexto)}</select></td>` +
-        `<td><label class="anexo-option"><input type="checkbox" class="anexos-mail" data-i="${i}"${m.anexos ? ' checked' : ''}>` +
-          `Guardar anexos (${m.anexos || 0})</label>` +
+        `<td><div class="anexos-lista">${m.anexos.length ? m.anexos.map(a =>
+          `<label title="${esc(a.nome)}"><input type="checkbox" class="anexo-mail" data-i="${i}" data-anexo="${a.indice}" checked> ${esc(a.nome)}</label>`).join('')
+          : '<span class="muted">Sem anexos</span>'}</div>` +
+          `<input class="pasta-anexos-mail" data-i="${i}" value="${esc(m.pasta_anexos_sugerida)}" title="Nome da pasta dos anexos">` +
           `<input type="file" class="ficheiros-mail" data-i="${i}" multiple title="Adicionar ficheiros próprios">` +
           `<input type="url" class="link-mail" data-i="${i}" value="${esc(m.links || '')}" placeholder="Link opcional"></td>` +
         `<td>${m.arquivado ? '<span class="tag">No arquivo</span>' : '<span class="muted">Não arquivado</span>'}</td>`;
@@ -404,6 +419,14 @@ async function listarEmailsSelecionados() {
   finally { setBusy(false); }
 }
 $('btn-selecionados').addEventListener('click', listarEmailsSelecionados);
+$('btn-contexto-lote').addEventListener('click', () => {
+  const valor = $('contexto-lote').value;
+  if (!valor) { alert('Escolha um Contexto.'); return; }
+  document.querySelectorAll('.chk-mail:checked').forEach(c => {
+    const campo = document.querySelector(`.ctx-mail[data-i="${c.dataset.i}"]`);
+    if (campo) campo.value = valor;
+  });
+});
 
 $('chk-todos').addEventListener('change', () => {
   document.querySelectorAll('.chk-mail').forEach(c => c.checked = $('chk-todos').checked);
@@ -430,15 +453,18 @@ $('btn-arquivar').addEventListener('click', async () => {
       const contexto = document.querySelector(`.ctx-mail[data-i="${c.dataset.i}"]`);
       const link = document.querySelector(`.link-mail[data-i="${c.dataset.i}"]`);
       const entidade = document.querySelector(`.entidade-mail[data-i="${c.dataset.i}"]`);
-      const anexos = document.querySelector(`.anexos-mail[data-i="${c.dataset.i}"]`);
+      const anexos = [...document.querySelectorAll(`.anexo-mail[data-i="${c.dataset.i}"]:checked`)]
+        .map(input => +input.dataset.anexo);
+      const pasta = document.querySelector(`.pasta-anexos-mail[data-i="${c.dataset.i}"]`);
       return { email: emailsListados[+c.dataset.i], contexto: contexto ? contexto.value : '',
         links: link ? link.value : '', entidade: entidade ? entidade.value : '',
-        linha, guardar_anexos: anexos ? anexos.checked : false };
+        linha, anexos, pasta: pasta ? pasta.value : '' };
     })
     .filter(Boolean)
     .map(item => ({ entry_id: item.email.entry_id, store_id: item.email.store_id,
       contexto: item.contexto, links: item.links, entidade: item.entidade,
-      linha: item.linha, guardar_anexos: item.guardar_anexos }));
+      linha: item.linha, anexos_selecionados_json: JSON.stringify(item.anexos),
+      guardar_anexos: item.anexos.length > 0, nome_pasta_anexos: item.pasta }));
   if (!ids.length) { alert('Seleccione pelo menos um email na lista.'); return; }
   setBusy(true, `A arquivar ${ids.length} email(s)…`);
   try {
@@ -478,7 +504,6 @@ $('btn-msg-files').addEventListener('click', async () => {
 /* ------------------------------------------------------ 3 · pesquisa ---- */
 async function pesquisar() {
   const termo = $('termo').value.trim();
-  if (!termo) { alert('Indique o texto a pesquisar.'); return; }
   setBusy(true, 'A pesquisar…');
   try {
     const data = await post('/api/pesquisar', { termo, projecto: $('ambito').value });

@@ -124,6 +124,8 @@ def api_arquivar():
         for ref in ids:
             linha = int(ref.get("linha", -1))
             ref["ficheiros"] = request.files.getlist(f"ficheiros_{linha}")
+            ref["anexos_selecionados"] = json.loads(
+                ref.get("anexos_selecionados_json", "[]"))
         res = engine.arquivar_emails(
             ids,
             request.form.get("projecto") or "",
