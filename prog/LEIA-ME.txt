@@ -21,20 +21,26 @@ PRIMEIROS PASSOS
 ----------------
   1) Seccao 1 — indique a pasta raiz do arquivo definida pela equipa
      (pasta de rede comum, ex.: \\servidor\DEP\Arquivo_Emails) e
-     carregue em "Gravar e ler projectos". Escolha o projecto.
-  2) Seccao 2 — "Ler pastas do Outlook", escolha a pasta (ex.:
-     A Receber), "Listar emails", seleccione e carregue em
-     "Arquivar seleccionados no projecto".
-  3) Seccao 3 — pesquise no arquivo e abra os emails com "Abrir".
+    carregue em "Gravar e ler projectos". Escolha o projecto.
+  2) Seccao 2 — no Outlook classico, seleccione os emails pretendidos
+    com Ctrl ou Shift. Carregue em "Ler emails seleccionados no
+    Outlook", escolha os contextos e carregue em "Arquivar".
+  3) Seccao 3 — abra a secção, carregue em "Pesquisar" para consultar
+    o historico. Use as setas nos titulos das colunas para filtrar por
+    varios remetentes, entidades, assuntos, contextos ou datas.
 
 NOTAS
 -----
   * O programa NAO apaga nem move nada no Outlook — grava copias .msg
-    na pasta do projecto, com nome AAAA-MM-DD_Remetente_Assunto.msg.
+    em Projecto\02-Geral\07-Email, com nome
+    AAAA-MM-DD_Remetente_Assunto.msg.
+  * Os anexos ficam em Projecto\02-Geral\07-Email\Anexos. Pode
+    escolher quais guardar, acrescentar ficheiros e alterar o nome da
+    pasta (a data do email fica sempre no inicio).
   * Os emails ja arquivados ficam com a categoria "Arquivado DEP" no
     Outlook e sao ignorados se tentar arquiva-los de novo (evita
     duplicados entre colegas).
-  * O indice _indice_emails.csv (na pasta de cada projecto) abre no
+  * O indice _indice_emails.csv (em 02-Geral\07-Email) abre no
     Excel — mas nao o deixe aberto enquanto arquiva, para nao
     bloquear a escrita.
 
