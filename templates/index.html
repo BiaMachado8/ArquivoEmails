@@ -19,7 +19,7 @@
   header img { height: 48px; display: none; background: #fff; border-radius: 8px; padding: 5px 9px; }
   header h1 { font-size: 20px; font-weight: 600; }
   header p { font-size: 13px; opacity: .85; margin-top: 2px; }
-  main { max-width: 1080px; margin: 24px auto; padding: 0 16px; }
+  main { max-width: 1480px; margin: 24px auto; padding: 0 18px; }
 
   .card { background: #fff; border: 1px solid var(--borda); border-radius: 6px; margin-bottom: 18px; }
   .card h2 { background: var(--azul-claro); color: var(--azul); font-size: 14px; padding: 10px 16px; border-bottom: 1px solid var(--borda); display: flex; align-items: center; }
@@ -44,6 +44,8 @@
   .fld input, .fld select, .fld textarea { border: none; outline: none; font-size: 14px; width: 100%;
                             background: transparent; color: #222; }
   .fld textarea { resize: vertical; min-height: 42px; font-family: inherit; }
+  .ctx-mail, .link-mail { width: 100%; min-width: 150px; border: 1px solid var(--borda);
+                          border-radius: 3px; padding: 5px; font-size: 12px; background: #fff; }
   .fld.caminho { flex: 1; min-width: 300px; }
 
   .btn { background: var(--azul); color: #fff; border: 1px solid var(--azul); border-radius: 4px;
@@ -57,6 +59,8 @@
   .muted { color: #667; font-size: 12px; }
 
   table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  .mail-table { min-width: 1240px; }
+  .search-table { min-width: 1220px; }
   thead th { background: var(--azul-claro); color: var(--azul); text-align: left;
              padding: 7px 9px; border: 1px solid var(--borda); position: sticky; top: 0; }
   tbody td { padding: 6px 9px; border: 1px solid var(--borda); vertical-align: top; }
@@ -75,6 +79,16 @@
   #resultado.ok { background: #e5f2e6; border: 1px solid #b7d8b9; color: #1d4d20; }
   #resultado.erro { background: #fbe7e7; border: 1px solid #f0c8c8; color: var(--erro); }
   #resultado .aviso { color: var(--ambar); margin-top: 6px; }
+  @media (max-width: 760px) {
+    header { padding: 12px 16px; }
+    header h1 { font-size: 18px; }
+    header p { font-size: 12px; }
+    main { margin: 14px auto; padding: 0 8px; }
+    .card .body { padding: 10px; }
+    .oprow { align-items: stretch; }
+    .oprow > .fld { min-width: 100% !important; width: 100% !important; }
+    .oprow > .btn { width: 100%; }
+  }
 </style>
 </head>
 <body>
@@ -139,7 +153,7 @@
       </div>
 
       <div class="tbl-wrap" id="tbl-wrap" style="display:none;">
-        <table>
+        <table class="mail-table">
           <thead>
             <tr>
               <th style="width:30px;"><input type="checkbox" id="chk-todos" title="Seleccionar todos"></th>
@@ -188,15 +202,15 @@
         <button class="btn sec" id="btn-abrir-projecto" title="Abre no Explorador a pasta do projecto seleccionado na secção 1.">Abrir pasta do projecto</button>
       </div>
       <div class="tbl-wrap" id="res-wrap" style="display:none;">
-        <table>
+        <table class="search-table">
           <thead>
             <tr>
               <th style="width:110px;">Projecto</th>
               <th style="width:120px;">Data</th>
               <th style="width:160px;">Remetente</th>
               <th>Assunto</th>
-              <th style="width:210px;">Contexto</th>
-              <th style="width:100px;">Anexos</th>
+              <th style="width:180px;">Contexto</th>
+              <th style="width:190px;">Anexos / link</th>
               <th style="width:110px;">Arquivado por</th>
               <th style="width:130px;">Abrir</th>
             </tr>
@@ -329,9 +343,10 @@ async function listarEmails() {
       tr.innerHTML =
         `<td><input type="checkbox" class="chk-mail" data-i="${i}"${m.arquivado ? '' : ' checked'}></td>` +
         `<td>${esc(m.data)}</td><td>${esc(m.remetente)}</td><td>${esc(m.assunto)}</td>` +
-        `<td><input type="text" class="ctx-mail" data-i="${i}" placeholder="Contexto deste email"></td>` +
-        `<td style="text-align:center;">${m.anexos || ''}</td>` +
-        `<td>${m.arquivado ? '<span class="tag">arquivado</span>' : ''}</td>`;
+        `<td><select class="ctx-mail" data-i="${i}">${opcoesContexto(m.contexto)}</select></td>` +
+        `<td><span class="tag">${m.anexos || 0} ficheiro(s)</span>` +
+          `<input type="url" class="link-mail" data-i="${i}" value="${esc(m.links || '')}" placeholder="Link opcional"></td>` +
+        `<td>${m.arquivado ? '<span class="tag">No arquivo</span>' : '<span class="muted">Não arquivado</span>'}</td>`;
       tb.appendChild(tr);
     });
     $('tbl-wrap').style.display = data.emails.length ? 'block' : 'none';
@@ -364,17 +379,30 @@ function renderArquivo(data) {
   return true;
 }
 
+const CONTEXTOS = [
+  '— escolher —', 'Informação', 'Ação necessária', 'Acompanhamento',
+  'Aprovação', 'Decisão', 'Reunião', 'Contrato', 'Faturação',
+  'Técnico', 'Urgente', 'Outro'
+];
+function opcoesContexto(atual) {
+  return CONTEXTOS.map(opcao =>
+    `<option value="${esc(opcao === '— escolher —' ? '' : opcao)}"` +
+    `${opcao === atual ? ' selected' : ''}>${esc(opcao)}</option>`).join('');
+}
+
 $('btn-arquivar').addEventListener('click', async () => {
   const projecto = $('projecto').value;
   if (!projecto) { alert('Escolha o projecto (secção 1).'); return; }
   const ids = [...document.querySelectorAll('.chk-mail:checked')]
     .map(c => {
       const contexto = document.querySelector(`.ctx-mail[data-i="${c.dataset.i}"]`);
-      return { email: emailsListados[+c.dataset.i], contexto: contexto ? contexto.value : '' };
+      const link = document.querySelector(`.link-mail[data-i="${c.dataset.i}"]`);
+      return { email: emailsListados[+c.dataset.i], contexto: contexto ? contexto.value : '',
+        links: link ? link.value : '' };
     })
     .filter(Boolean)
     .map(item => ({ entry_id: item.email.entry_id, store_id: item.email.store_id,
-      contexto: item.contexto }));
+      contexto: item.contexto, links: item.links }));
   if (!ids.length) { alert('Seleccione pelo menos um email na lista.'); return; }
   setBusy(true, `A arquivar ${ids.length} email(s)…`);
   try {
@@ -423,7 +451,8 @@ async function pesquisar() {
         `<td>${esc(r.contexto)}</td>` +
         `<td>${r.pasta_anexos
           ? `<button class="btn sec btn-abrir" data-c="${esc(r.pasta_anexos)}" style="padding:4px 10px;font-size:12px;">Abrir pasta</button>`
-          : '<span class="muted">nenhum</span>'}</td>` +
+          : '<span class="muted">nenhum</span>'}` +
+          `${r.links ? ` <a href="${esc(r.links)}" target="_blank" rel="noopener">Abrir link</a>` : ''}</td>` +
         `<td>${esc(r.arquivado_por)}</td>` +
         `<td>${r.existe
             ? `<button class="btn sec btn-abrir" data-c="${esc(r.caminho)}" style="padding:4px 10px;font-size:12px;">Abrir</button>`

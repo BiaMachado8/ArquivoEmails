@@ -18,6 +18,7 @@ import sys
 import time
 import unicodedata
 from datetime import datetime
+from urllib.parse import urlparse
 
 
 class EngineError(Exception):
@@ -37,7 +38,7 @@ CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".arquivo_emails.json")
 
 INDICE_NOME = "_indice_emails.csv"
 CAMPOS_INDICE = ["DataEmail", "Remetente", "Destinatarios", "Assunto",
-                 "Anexos", "Ficheiro", "PastaAnexos", "Contexto", "Projecto",
+                 "Anexos", "Ficheiro", "PastaAnexos", "Contexto", "Links", "Projecto",
                  "ArquivadoPor", "DataArquivo", "MessageID"]
 CATEGORIA_ARQUIVADO = "Arquivado DEP"
 
@@ -211,6 +212,16 @@ def _msgids_arquivados(pasta_projecto):
             if r.get("MessageID")}
 
 
+def _contextos_arquivados(pasta_projecto):
+    return {r.get("MessageID"): r.get("Contexto", "")
+            for r in _ler_indice(pasta_projecto) if r.get("MessageID")}
+
+
+def _metadados_arquivados(pasta_projecto):
+    return {r.get("MessageID"): r for r in _ler_indice(pasta_projecto)
+            if r.get("MessageID")}
+
+
 def _registar_indice(pasta_projecto, linha, tentativas=12, espera=0.5):
     """Acrescenta uma linha ao índice do projecto. Em pasta de rede
     partilhada o ficheiro pode estar momentaneamente bloqueado por um
@@ -324,8 +335,11 @@ def listar_emails(entry_id, store_id, limite=50, filtro="", projecto="",
     aplicado ao remetente e ao assunto (sem distinguir maiúsculas)."""
     ns = _outlook()
     arquivados_no_projecto = set()
+    metadados_no_projecto = {}
     if projecto:
-        arquivados_no_projecto = _msgids_arquivados(_pasta_projecto(projecto))
+        pasta_projecto = _pasta_projecto(projecto)
+        arquivados_no_projecto = _msgids_arquivados(pasta_projecto)
+        metadados_no_projecto = _metadados_arquivados(pasta_projecto)
     try:
         pasta = ns.GetFolderFromID(entry_id, store_id)
     except Exception:
@@ -357,6 +371,8 @@ def listar_emails(entry_id, store_id, limite=50, filtro="", projecto="",
                 "assunto": assunto,
                 "anexos": int(getattr(item.Attachments, "Count", 0) or 0),
                 "arquivado": bool(msgid and msgid in arquivados_no_projecto),
+                "contexto": metadados_no_projecto.get(msgid, {}).get("Contexto", ""),
+                "links": metadados_no_projecto.get(msgid, {}).get("Links", ""),
             })
         except Exception:
             continue
@@ -375,7 +391,7 @@ def _message_id(item):
 
 
 def _arquivar_item(item, pasta_projecto, projecto, ja_arquivados,
-                   permitir_repetidos, marcar_categoria, contexto=""):
+                   permitir_repetidos, marcar_categoria, contexto="", links=""):
     """Arquiva um MailItem; devolve ('ok'|'repetido', info)."""
     msgid = _message_id(item)
     if msgid and not permitir_repetidos and msgid in ja_arquivados:
@@ -388,6 +404,9 @@ def _arquivar_item(item, pasta_projecto, projecto, ja_arquivados,
     except Exception:
         dest = ""
     nome = nome_normalizado(data, remetente, assunto)
+    links = (links or "").strip()
+    if links and urlparse(links).scheme not in ("http", "https"):
+        raise EngineError("O link do anexo deve começar por http:// ou https://.")
     caminho = _caminho_livre(pasta_projecto, nome)
     item.SaveAs(caminho, OL_FORMATO_MSG)
     pasta_anexos = _guardar_anexos(item, pasta_projecto, os.path.basename(caminho))
@@ -400,6 +419,7 @@ def _arquivar_item(item, pasta_projecto, projecto, ja_arquivados,
         "Ficheiro": os.path.basename(caminho),
         "PastaAnexos": pasta_anexos,
         "Contexto": contexto.strip(),
+        "Links": links.strip(),
         "Projecto": projecto,
         "ArquivadoPor": os.environ.get("USERNAME", ""),
         "DataArquivo": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -436,7 +456,8 @@ def arquivar_emails(ids, projecto, permitir_repetidos=False,
             estado, info = _arquivar_item(item, pasta_projecto, projecto, ja,
                                           permitir_repetidos,
                                           marcar_categoria,
-                                          ref.get("contexto", ""))
+                                          ref.get("contexto", ""),
+                                          ref.get("links", ""))
             (arquivados if estado == "ok" else repetidos).append(info)
         except EngineError:
             raise
@@ -502,6 +523,7 @@ def pesquisar(termo, projecto=None, max_resultados=200):
                         if r.get("PastaAnexos") else "",
                     "ficheiro": r.get("Ficheiro", ""),
                     "arquivado_por": r.get("ArquivadoPor", ""),
+                    "links": r.get("Links", ""),
                     "caminho": os.path.join(pasta, r.get("Ficheiro", "")),
                     "existe": os.path.isfile(
                         os.path.join(pasta, r.get("Ficheiro", ""))),
