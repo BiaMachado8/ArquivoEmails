@@ -63,8 +63,13 @@
   .pasta-anexos-mail { display: block; width: 100%; min-width: 150px; margin-top: 5px;
                        border: 1px solid var(--borda); border-radius: 3px; padding: 5px;
                        font-size: 12px; background: #fff; }
-  .filtro-coluna { width: 100%; min-width: 85px; border: 1px solid var(--borda); border-radius: 3px;
-                   padding: 4px; font-size: 11px; margin-top: 4px; }
+  .filter-head { display: flex; align-items: center; justify-content: space-between; gap: 5px; }
+  .filter-btn { border: 0; background: transparent; color: var(--azul); cursor: pointer; font-size: 12px; padding: 2px 4px; }
+  .filter-menu { position: fixed; z-index: 50; display: none; min-width: 180px; max-height: 260px;
+                 overflow: auto; background: #fff; border: 1px solid var(--borda); box-shadow: 0 3px 10px #0003;
+                 padding: 5px; text-align: left; }
+  .filter-menu button { display: block; width: 100%; border: 0; background: #fff; padding: 6px 8px; text-align: left; cursor: pointer; }
+  .filter-menu button:hover { background: var(--azul-claro); }
   .anexos-lista { margin-top: 5px; font-size: 11px; }
   .anexos-lista label { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .anexos-todos { display: block; margin: 5px 0; font-size: 11px; color: var(--azul); }
@@ -230,13 +235,13 @@
         <table class="search-table">
           <thead>
             <tr>
-              <th style="width:120px;">Data<br><input class="filtro-coluna" data-filtro="data" placeholder="filtrar"></th>
-              <th style="width:160px;">Remetente<br><input class="filtro-coluna" data-filtro="remetente" placeholder="filtrar"></th>
-              <th style="width:150px;">Entidade<br><input class="filtro-coluna" data-filtro="entidade" placeholder="filtrar"></th>
-              <th>Assunto<br><input class="filtro-coluna" data-filtro="assunto" placeholder="filtrar"></th>
-              <th style="width:180px;">Contexto<br><input class="filtro-coluna" data-filtro="contexto" placeholder="filtrar"></th>
+              <th style="width:120px;"><div class="filter-head">Data<button class="filter-btn" data-filtro="data">▼</button></div></th>
+              <th style="width:160px;"><div class="filter-head">Remetente<button class="filter-btn" data-filtro="remetente">▼</button></div></th>
+              <th style="width:150px;"><div class="filter-head">Entidade<button class="filter-btn" data-filtro="entidade">▼</button></div></th>
+              <th><div class="filter-head">Assunto<button class="filter-btn" data-filtro="assunto">▼</button></div></th>
+              <th style="width:180px;"><div class="filter-head">Contexto<button class="filter-btn" data-filtro="contexto">▼</button></div></th>
               <th style="width:190px;">Anexos / link</th>
-              <th style="width:110px;">Arquivado por<br><input class="filtro-coluna" data-filtro="arquivado_por" placeholder="filtrar"></th>
+              <th style="width:110px;"><div class="filter-head">Arquivado por<button class="filter-btn" data-filtro="arquivado_por">▼</button></div></th>
               <th style="width:130px;">Abrir</th>
             </tr>
           </thead>
@@ -411,10 +416,10 @@ async function listarEmailsSelecionados() {
         `<td><input class="entidade-mail" data-i="${i}" value="${esc(m.entidade || '')}" placeholder="Empresa"></td>` +
         `<td>${esc(m.assunto)}</td>` +
         `<td><select class="ctx-mail" data-i="${i}">${opcoesContexto(m.contexto)}</select></td>` +
-        `<td><div class="anexos-lista">${m.anexos.length ? m.anexos.map(a =>
+        `<td>${m.anexos.length ? `<label class="anexos-todos"><input type="checkbox" class="chk-anexos-todos" data-i="${i}" checked> Selecionar todos</label>` : ''}` +
+          `<div class="anexos-lista">${m.anexos.length ? m.anexos.map(a =>
           `<label title="${esc(a.nome)}"><input type="checkbox" class="anexo-mail" data-i="${i}" data-anexo="${a.indice}" checked> ${esc(a.nome)}</label>`).join('')
           : '<span class="muted">Sem anexos</span>'}</div>` +
-          `${m.anexos.length ? `<label class="anexos-todos"><input type="checkbox" class="chk-anexos-todos" data-i="${i}" checked> Selecionar todos</label>` : ''}` +
           `<input class="pasta-anexos-mail" data-i="${i}" value="${esc(m.pasta_anexos_sugerida)}" title="Nome da pasta dos anexos">` +
           `<input type="file" class="ficheiros-mail" data-i="${i}" multiple title="Adicionar ficheiros próprios">` +
           `<input type="url" class="link-mail" data-i="${i}" value="${esc(m.links || '')}" placeholder="Link opcional"></td>` +
@@ -568,26 +573,48 @@ async function pesquisar() {
   finally { setBusy(false); }
 }
 function filtrarResultados() {
-  const filtros = {};
-  document.querySelectorAll('.filtro-coluna').forEach(campo => {
-    filtros[campo.dataset.filtro] = campo.value.trim().toLowerCase();
-  });
   const linhas = [...document.querySelectorAll('.res-row')];
   let visiveis = 0;
   linhas.forEach(linha => {
-    const mostra = Object.entries(filtros).every(([campo, valor]) =>
-      !valor || (linha.dataset[campo] || '').includes(valor));
+    const mostra = Object.entries(filtrosResultados).every(([campo, valor]) =>
+      !valor || linha.dataset[campo] === valor);
     linha.style.display = mostra ? '' : 'none';
     if (mostra) visiveis += 1;
   });
   $('nota-res').textContent = `${visiveis} resultado(s) visível(eis).`;
 }
+let filtrosResultados = {};
+function abrirFiltro(campo, botao) {
+  document.querySelectorAll('.filter-menu').forEach(menu => menu.remove());
+  const valores = [...new Set([...document.querySelectorAll('.res-row')]
+    .map(linha => linha.dataset[campo] || '').filter(Boolean))].sort();
+  const menu = document.createElement('div');
+  menu.className = 'filter-menu';
+  const todos = document.createElement('button');
+  todos.textContent = filtrosResultados[campo] ? 'Limpar filtro' : 'Todos';
+  todos.onclick = () => { delete filtrosResultados[campo]; menu.remove(); filtrarResultados(); };
+  menu.appendChild(todos);
+  valores.forEach(valor => {
+    const item = document.createElement('button');
+    item.textContent = valor;
+    item.onclick = () => { filtrosResultados[campo] = valor; menu.remove(); filtrarResultados(); };
+    menu.appendChild(item);
+  });
+  document.body.appendChild(menu);
+  const rect = botao.getBoundingClientRect();
+  menu.style.left = `${rect.left}px`;
+  menu.style.top = `${rect.bottom + 3}px`;
+  menu.style.display = 'block';
+}
 $('btn-pesquisar').addEventListener('click', pesquisar);
 $('termo').addEventListener('keydown', e => { if (e.key === 'Enter') pesquisar(); });
-document.querySelectorAll('.filtro-coluna').forEach(campo => {
-  campo.addEventListener('input', filtrarResultados);
-  campo.addEventListener('click', e => e.stopPropagation());
+document.querySelectorAll('.filter-btn').forEach(botao => {
+  botao.addEventListener('click', e => {
+    e.stopPropagation();
+    abrirFiltro(botao.dataset.filtro, botao);
+  });
 });
+document.addEventListener('click', () => document.querySelectorAll('.filter-menu').forEach(menu => menu.remove()));
 
 $('tbl-res').addEventListener('click', async e => {
   const b = e.target.closest('.btn-abrir');
