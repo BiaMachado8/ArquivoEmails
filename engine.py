@@ -625,6 +625,12 @@ def _arquivar_item(item, pasta_projecto, projecto, ja_arquivados,
     except Exception:
         dest = ""
     nome = nome_normalizado(data, remetente, assunto)
+    contexto = (contexto or "").strip()
+    entidade = (entidade or "").strip()
+    if not contexto:
+        raise EngineError("O Contexto é obrigatório.")
+    if not entidade:
+        raise EngineError("A Entidade é obrigatória.")
     links = (links or "").strip()
     if links and urlparse(links).scheme not in ("http", "https"):
         raise EngineError("O link do anexo deve começar por http:// ou https://.")
@@ -632,9 +638,13 @@ def _arquivar_item(item, pasta_projecto, projecto, ja_arquivados,
     item.SaveAs(caminho, OL_FORMATO_MSG)
     pasta_anexos = ""
     prefixo_data = data.strftime("%Y-%m-%d") + "_"
-    nome_pasta = nome_pasta_anexos.strip() or os.path.splitext(os.path.basename(caminho))[0]
+    nome_pasta = nome_pasta_anexos.strip()
+    if not nome_pasta:
+        raise EngineError("Indique o nome da pasta dos anexos depois da data.")
     nome_pasta = re.sub(r"[\\/:*?\"<>|]", "_", nome_pasta).strip(" .")[:120]
     nome_pasta = prefixo_data + nome_pasta.removeprefix(prefixo_data)
+    if nome_pasta == prefixo_data:
+        raise EngineError("Indique o nome da pasta dos anexos depois da data.")
     nome_pasta = re.sub(r"[\\/:*?\"<>|]", "_", nome_pasta).strip(" .")[:120]
     if guardar_anexos:
         pasta_anexos = _guardar_anexos_selecionados(
