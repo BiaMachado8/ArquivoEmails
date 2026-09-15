@@ -55,6 +55,15 @@ def api_config():
         return jsonify({"error": str(e)}), 400
 
 
+@app.route("/api/escolher-pasta", methods=["POST"])
+def api_escolher_pasta():
+    try:
+        pasta = engine.escolher_pasta(request.form.get("inicial") or "")
+        return jsonify({"pasta": pasta})
+    except engine.EngineError as e:
+        return jsonify({"error": str(e)}), 400
+
+
 @app.route("/api/projectos", methods=["GET", "POST"])
 def api_projectos():
     try:
@@ -73,6 +82,17 @@ def api_contextos():
             valores = json.loads(request.form.get("contextos") or "[]")
             return jsonify({"contextos": engine.gravar_contextos(valores)})
         return jsonify({"contextos": engine.ler_contextos()})
+    except (ValueError, engine.EngineError) as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/entidades", methods=["GET", "POST"])
+def api_entidades():
+    try:
+        if request.method == "POST":
+            valores = json.loads(request.form.get("entidades") or "[]")
+            return jsonify({"entidades": engine.gravar_entidades(valores)})
+        return jsonify({"entidades": engine.ler_entidades()})
     except (ValueError, engine.EngineError) as e:
         return jsonify({"error": str(e)}), 400
 

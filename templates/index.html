@@ -51,11 +51,11 @@
   .fld textarea { resize: vertical; min-height: 42px; font-family: inherit; }
   .ctx-mail, .link-mail { width: 100%; min-width: 150px; border: 1px solid var(--borda);
                           border-radius: 3px; padding: 5px; font-size: 12px; background: #fff; }
-  .contextos-editor { border: 1px solid var(--borda); border-radius: 4px; padding: 8px;
+  .lista-editor { border: 1px solid var(--borda); border-radius: 4px; padding: 8px;
                       background: #f8fbfe; margin-bottom: 10px; max-height: 190px; overflow: auto; }
-  .contexto-opcao { display: inline-flex; width: 48%; gap: 5px; align-items: center; margin-top: 5px; }
-  .contexto-opcao input { flex: 1; border: 1px solid var(--borda); border-radius: 3px; padding: 6px; }
-  .contexto-opcao .btn { padding: 5px 8px; font-size: 11px; }
+  .lista-opcao { display: inline-flex; width: 48%; gap: 5px; align-items: center; margin-top: 5px; }
+  .lista-opcao input { flex: 1; border: 1px solid var(--borda); border-radius: 3px; padding: 6px; }
+  .lista-opcao .btn { padding: 5px 8px; font-size: 11px; }
   .entidade-mail { width: 100%; min-width: 140px; border: 1px solid var(--borda);
                    border-radius: 3px; padding: 5px; font-size: 12px; background: #fff; }
   .anexo-option { display: flex; align-items: center; gap: 5px; white-space: nowrap; font-size: 12px; }
@@ -154,7 +154,7 @@
           <label>Pasta raiz do arquivo (a pasta que contém os projetos)</label>
           <input type="text" id="pasta-raiz" value="{{ config.pasta_raiz }}" placeholder="ex.: C:\Arquivo_Emails ou \\servidor\DEP\Arquivo_Emails">
         </div>
-        <button class="btn sec" id="btn-pick-raiz" style="display:none;">Escolher pasta…</button>
+        <button class="btn sec" id="btn-pick-raiz" title="Abre o diálogo de pastas do Windows.">Escolher pasta…</button>
         <button class="btn" id="btn-gravar-raiz">Gravar e ler projectos</button>
         <div class="fld" style="width:260px;">
           <label>Projecto</label>
@@ -174,14 +174,24 @@
         <button class="btn" id="btn-selecionados">Ler emails selecionados no Outlook</button>
         <span class="muted">No Outlook, selecione os emails com Ctrl ou Shift antes de carregar.</span>
         <button class="btn sec" id="btn-gerir-contextos">Editar contextos</button>
+        <button class="btn sec" id="btn-gerir-entidades">Editar entidades</button>
       </div>
-      <div id="contextos-editor" class="contextos-editor" style="display:none;">
-        <div class="muted">Lista comum a todos os projetos e utilizadores desta pasta raiz.</div>
+      <div id="contextos-editor" class="lista-editor" style="display:none;">
+        <div class="muted">Contextos — lista comum a todos os projetos e utilizadores desta pasta raiz.</div>
         <div id="lista-contextos"></div>
         <div class="oprow" style="margin:10px 0 0;">
           <input type="text" id="novo-contexto" placeholder="Novo contexto">
           <button class="btn sec" id="btn-add-contexto">Adicionar</button>
           <button class="btn" id="btn-gravar-contextos">Guardar contextos</button>
+        </div>
+      </div>
+      <div id="entidades-editor" class="lista-editor" style="display:none;">
+        <div class="muted">Entidades — lista comum a todos os projetos e utilizadores desta pasta raiz. A entidade escolhida para um remetente fica memorizada e é preenchida automaticamente nos próximos emails dele.</div>
+        <div id="lista-entidades"></div>
+        <div class="oprow" style="margin:10px 0 0;">
+          <input type="text" id="nova-entidade" placeholder="Nova entidade">
+          <button class="btn sec" id="btn-add-entidade">Adicionar</button>
+          <button class="btn" id="btn-gravar-entidades">Guardar entidades</button>
         </div>
       </div>
 
@@ -272,6 +282,7 @@ function setBusy(b, text) {
   $('spinner-text').textContent = text || 'A processar…';
   ['btn-selecionados','btn-arquivar','btn-pesquisar','btn-gravar-raiz',
     'btn-gerir-contextos','btn-gravar-contextos','btn-add-contexto',
+    'btn-gerir-entidades','btn-gravar-entidades','btn-add-entidade',
     'btn-contexto-lote']
     .forEach(id => $(id).disabled = b);
 }
@@ -318,7 +329,7 @@ async function gravarRaizELerProjectos(silencioso) {
     const data = await post('/api/projectos', {});
     if (data.error) { showResult(false, data.error); return; }
     preencherProjectos(data.projectos);
-    await carregarContextos();
+    await carregarListas();
     if (!silencioso)
       showResult(true, `Pasta raiz gravada — ${data.projectos.length} projecto(s) encontrados.`);
   } catch (e) {
@@ -341,72 +352,96 @@ $('btn-novo-projecto').addEventListener('click', async () => {
   finally { setBusy(false); }
 });
 
-/* ------------------------------------------------------- 2 · Outlook ---- */
-let contextos = [];
-async function carregarContextos() {
-  const r = await fetch('/api/contextos');
+/* -------------------------------- listas partilhadas: contextos e entidades */
+const LISTAS = {
+  contextos: { url: '/api/contextos', chave: 'contextos', editor: 'contextos-editor',
+               lista: 'lista-contextos', novo: 'novo-contexto', campo: '.ctx-mail',
+               msg: 'Contextos guardados para todos os utilizadores.', valores: [] },
+  entidades: { url: '/api/entidades', chave: 'entidades', editor: 'entidades-editor',
+               lista: 'lista-entidades', novo: 'nova-entidade', campo: '.entidade-mail',
+               msg: 'Entidades guardadas para todos os utilizadores.', valores: [] },
+};
+async function carregarLista(tipo) {
+  const L = LISTAS[tipo];
+  const r = await fetch(L.url);
   const data = await r.json();
   if (data.error) throw new Error(data.error);
-  contextos = data.contextos;
-  renderContextos();
+  L.valores = data[L.chave];
+  renderLista(tipo);
+  if (tipo === 'contextos') preencherContextoLote();
 }
-function renderContextos() {
-  $('lista-contextos').innerHTML = contextos.map((valor, i) =>
-    `<div class="contexto-opcao"><input value="${esc(valor)}" data-contexto="${i}">` +
-    `<button class="btn sec btn-remover-contexto" data-contexto="${i}">Remover</button></div>`).join('');
+async function carregarListas() {
+  await Promise.all(Object.keys(LISTAS).map(carregarLista));
 }
-function opcoesContexto(atual) {
-  const lista = atual && !contextos.includes(atual) ? [atual, ...contextos] : contextos;
+function renderLista(tipo) {
+  const L = LISTAS[tipo];
+  $(L.lista).innerHTML = L.valores.map((valor, i) =>
+    `<div class="lista-opcao"><input value="${esc(valor)}" data-i="${i}">` +
+    `<button class="btn sec btn-remover" data-i="${i}">Remover</button></div>`).join('');
+}
+function ordenar(lista) {
+  return [...lista].sort((a, b) => a.localeCompare(b, 'pt', { sensitivity: 'base' }));
+}
+function opcoes(tipo, atual) {
+  const valores = LISTAS[tipo].valores;
+  const lista = ordenar(atual && !valores.includes(atual) ? [atual, ...valores] : valores);
   return `<option value="">— escolher —</option>` + lista.map(valor =>
     `<option value="${esc(valor)}"${valor === atual ? ' selected' : ''}>${esc(valor)}</option>`).join('');
 }
-function atualizarDropdownsContexto() {
-  document.querySelectorAll('.ctx-mail').forEach(campo => {
+function atualizarDropdowns(tipo) {
+  document.querySelectorAll(LISTAS[tipo].campo).forEach(campo => {
     const atual = campo.value;
-    campo.innerHTML = opcoesContexto(atual);
+    campo.innerHTML = opcoes(tipo, atual);
     campo.value = atual;
   });
-  preencherContextoLote();
+  if (tipo === 'contextos') preencherContextoLote();
 }
 function preencherContextoLote() {
   $('contexto-lote').innerHTML = `<option value="">Contexto para os selecionados</option>` +
-    contextos.map(valor => `<option value="${esc(valor)}">${esc(valor)}</option>`).join('');
+    ordenar(LISTAS.contextos.valores).map(valor => `<option value="${esc(valor)}">${esc(valor)}</option>`).join('');
 }
-$('btn-gerir-contextos').addEventListener('click', async () => {
-  const editor = $('contextos-editor');
-  editor.style.display = editor.style.display === 'none' ? 'block' : 'none';
-  if (editor.style.display === 'block') {
-    try { await carregarContextos(); } catch (e) { showResult(false, e.message); }
-  }
-});
-$('btn-add-contexto').addEventListener('click', () => {
-  const valor = $('novo-contexto').value.trim();
-  if (valor && !contextos.includes(valor)) contextos.push(valor);
-  $('novo-contexto').value = '';
-  renderContextos();
-  atualizarDropdownsContexto();
-});
-$('lista-contextos').addEventListener('click', e => {
-  const b = e.target.closest('.btn-remover-contexto');
-  if (!b) return;
-  contextos.splice(+b.dataset.contexto, 1);
-  renderContextos();
-});
-$('btn-gravar-contextos').addEventListener('click', async () => {
-  contextos = [...document.querySelectorAll('#lista-contextos input')]
-    .map(el => el.value.trim()).filter(Boolean);
-  try {
-    const data = await post('/api/contextos', { contextos: JSON.stringify(contextos) });
-    if (data.error) { showResult(false, data.error); return; }
-    contextos = data.contextos; renderContextos(); atualizarDropdownsContexto();
-    showResult(true, 'Contextos guardados para todos os utilizadores.');
-  } catch (e) { showResult(false, 'Erro de comunicação: ' + e); }
-});
+function ligarEditorLista(tipo, btnGerir, btnAdd, btnGravar) {
+  const L = LISTAS[tipo];
+  $(btnGerir).addEventListener('click', async () => {
+    const editor = $(L.editor);
+    const abrir = editor.style.display === 'none';
+    editor.style.display = abrir ? 'block' : 'none';
+    if (abrir) {
+      try { await carregarLista(tipo); } catch (e) { showResult(false, e.message); }
+    }
+  });
+  $(btnAdd).addEventListener('click', () => {
+    const valor = $(L.novo).value.trim();
+    if (valor && !L.valores.includes(valor)) L.valores.push(valor);
+    $(L.novo).value = '';
+    renderLista(tipo);
+    atualizarDropdowns(tipo);
+  });
+  $(L.lista).addEventListener('click', e => {
+    const b = e.target.closest('.btn-remover');
+    if (!b) return;
+    L.valores.splice(+b.dataset.i, 1);
+    renderLista(tipo);
+  });
+  $(btnGravar).addEventListener('click', async () => {
+    L.valores = [...document.querySelectorAll(`#${L.lista} input`)]
+      .map(el => el.value.trim()).filter(Boolean);
+    try {
+      const data = await post(L.url, { [L.chave]: JSON.stringify(L.valores) });
+      if (data.error) { showResult(false, data.error); return; }
+      L.valores = data[L.chave]; renderLista(tipo); atualizarDropdowns(tipo);
+      showResult(true, L.msg);
+    } catch (e) { showResult(false, 'Erro de comunicação: ' + e); }
+  });
+}
+ligarEditorLista('contextos', 'btn-gerir-contextos', 'btn-add-contexto', 'btn-gravar-contextos');
+ligarEditorLista('entidades', 'btn-gerir-entidades', 'btn-add-entidade', 'btn-gravar-entidades');
 
+/* ------------------------------------------------------- 2 · Outlook ---- */
 async function listarEmailsSelecionados() {
   if (!$('projecto').value) { alert('Escolha primeiro o projecto.'); return; }
-  if (!contextos.length) {
-    try { await carregarContextos(); } catch (e) { showResult(false, e.message); return; }
+  if (Object.values(LISTAS).some(L => !L.valores.length)) {
+    try { await carregarListas(); } catch (e) { showResult(false, e.message); return; }
   }
   setBusy(true, 'A listar emails…');
   try {
@@ -421,15 +456,15 @@ async function listarEmailsSelecionados() {
       tr.innerHTML =
         `<td><input type="checkbox" class="chk-mail" data-i="${i}"${m.arquivado ? '' : ' checked'}></td>` +
         `<td>${esc(m.data)}</td><td>${esc(m.remetente)}</td>` +
-        `<td><input class="entidade-mail" data-i="${i}" value="${esc(m.entidade || '')}" placeholder="Empresa"></td>` +
+        `<td><select class="entidade-mail" data-i="${i}">${opcoes('entidades', m.entidade)}</select></td>` +
         `<td>${esc(m.assunto)}</td>` +
-        `<td><select class="ctx-mail" data-i="${i}">${opcoesContexto(m.contexto)}</select></td>` +
+        `<td><select class="ctx-mail" data-i="${i}">${opcoes('contextos', m.contexto)}</select></td>` +
         `<td>${m.anexos.length ? `<label class="anexos-todos"><input type="checkbox" class="chk-anexos-todos" data-i="${i}"> Selecionar todos</label>` : ''}` +
           `<div class="anexos-lista">${m.anexos.length ? m.anexos.map(a =>
           `<label title="${esc(a.nome)}"><input type="checkbox" class="anexo-mail" data-i="${i}" data-anexo="${a.indice}"> ${esc(a.nome)}</label>`).join('')
           : '<span class="muted">Sem anexos</span>'}</div>` +
           `<div class="pasta-anexos-fixa"><span>${esc(m.pasta_anexos_sugerida.split('_')[0])}_</span>` +
-          `<input class="pasta-anexos-mail" data-i="${i}" value="" placeholder="nome da pasta" title="Escreva o nome depois da data"></div>` +
+          `<input class="pasta-anexos-mail" data-i="${i}" value="" placeholder="nome da pasta" title="Obrigatório apenas quando guarda anexos ou ficheiros"></div>` +
           `<input type="file" class="ficheiros-mail" data-i="${i}" multiple title="Adicionar ficheiros próprios">` +
           `<input type="url" class="link-mail" data-i="${i}" value="${esc(m.links || '')}" placeholder="Link opcional"></td>` +
         `<td>${m.arquivado ? '<span class="tag">No arquivo</span>' : '<span class="muted">Não arquivado</span>'}</td>`;
@@ -452,18 +487,34 @@ $('tbl-emails').addEventListener('click', e => {
   document.querySelectorAll(`.anexo-mail[data-i="${controlo.dataset.i}"]`)
     .forEach(campo => campo.checked = controlo.checked);
 });
+/* a pasta de anexos só é obrigatória se houver anexos marcados ou ficheiros próprios */
+function precisaPasta(i) {
+  const ficheiros = document.querySelector(`.ficheiros-mail[data-i="${i}"]`);
+  return !!document.querySelector(`.anexo-mail[data-i="${i}"]:checked`) ||
+    !!(ficheiros && ficheiros.files.length);
+}
+function validarPasta(i) {
+  const pasta = document.querySelector(`.pasta-anexos-mail[data-i="${i}"]`);
+  if (!pasta) return;
+  pasta.classList.toggle('campo-invalido', precisaPasta(i) && !pasta.value.trim());
+  const tr = pasta.closest('tr');
+  tr.classList.toggle('linha-invalida', !!tr.querySelector('.campo-invalido'));
+}
 $('tbl-emails').addEventListener('change', e => {
-  const campo = e.target.closest('.ctx-mail, .entidade-mail, .pasta-anexos-mail');
+  const campo = e.target.closest('.ctx-mail, .entidade-mail');
   if (campo) {
     campo.classList.toggle('campo-invalido', !campo.value.trim());
     campo.closest('tr').classList.toggle('linha-invalida',
       !!campo.closest('tr').querySelector('.campo-invalido'));
   }
   const anexo = e.target.closest('.anexo-mail');
-  if (!anexo) return;
-  const todos = document.querySelectorAll(`.anexo-mail[data-i="${anexo.dataset.i}"]`);
-  const controlo = document.querySelector(`.chk-anexos-todos[data-i="${anexo.dataset.i}"]`);
-  if (controlo) controlo.checked = [...todos].every(campo => campo.checked);
+  if (anexo) {
+    const todos = document.querySelectorAll(`.anexo-mail[data-i="${anexo.dataset.i}"]`);
+    const controlo = document.querySelector(`.chk-anexos-todos[data-i="${anexo.dataset.i}"]`);
+    if (controlo) controlo.checked = [...todos].every(campo => campo.checked);
+  }
+  const alvo = e.target.closest('.anexo-mail, .chk-anexos-todos, .ficheiros-mail, .pasta-anexos-mail');
+  if (alvo) validarPasta(alvo.dataset.i);
 });
 $('btn-contexto-lote').addEventListener('click', () => {
   const valor = $('contexto-lote').value;
@@ -524,12 +575,13 @@ $('btn-arquivar').addEventListener('click', async () => {
     const linha = c.closest('tr');
     [contexto, entidade, pasta].forEach(campo => campo && campo.classList.remove('campo-invalido'));
     linha.classList.remove('linha-invalida');
-    if (!contexto.value || !entidade.value.trim() || !pasta.value.trim()) {
+    const faltaPasta = precisaPasta(i) && !pasta.value.trim();
+    if (!contexto.value || !entidade.value.trim() || faltaPasta) {
       valido = false;
       linha.classList.add('linha-invalida');
       if (!contexto.value) contexto.classList.add('campo-invalido');
       if (!entidade.value.trim()) entidade.classList.add('campo-invalido');
-      if (!pasta.value.trim()) pasta.classList.add('campo-invalido');
+      if (faltaPasta) pasta.classList.add('campo-invalido');
     }
   });
   if (!valido) {
@@ -695,14 +747,20 @@ document.querySelectorAll('.recolhivel').forEach(titulo => {
 });
 window.addEventListener('pywebviewready', () => {
   emJanela = true;
-  $('btn-pick-raiz').style.display = 'inline-block';
   $('btn-msg-files').style.display = 'inline-block';
 });
 $('btn-pick-raiz').addEventListener('click', async () => {
+  let p = null;
   try {
-    const p = await window.pywebview.api.choose_folder();
-    if (p) { $('pasta-raiz').value = p; gravarRaizELerProjectos(false); }
-  } catch (e) { /* diálogo cancelado ou indisponível */ }
+    if (emJanela) {
+      p = await window.pywebview.api.choose_folder();
+    } else {
+      const data = await post('/api/escolher-pasta', { inicial: $('pasta-raiz').value.trim() });
+      if (data.error) { showResult(false, data.error); return; }
+      p = data.pasta;
+    }
+  } catch (e) { return; /* diálogo cancelado ou indisponível */ }
+  if (p) { $('pasta-raiz').value = p; gravarRaizELerProjectos(false); }
 });
 
 /* se já houver pasta raiz configurada, carrega logo os projectos */

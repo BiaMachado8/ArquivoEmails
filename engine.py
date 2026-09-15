@@ -14,6 +14,7 @@ import csv
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 import unicodedata
@@ -39,7 +40,8 @@ CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".arquivo_emails.json")
 
 INDICE_NOME = "_indice_emails.csv"
 CONTEXTOS_NOME = "_contextos.json"
-ENTIDADES_NOME = "_entidades.json"
+ENTIDADES_NOME = "_entidades_lista.json"    # lista de entidades (editável na app)
+ENTIDADES_MEMORIA_NOME = "_entidades.json"  # remetente → entidade já atribuída
 CAMPOS_INDICE = ["DataEmail", "Remetente", "Destinatarios", "Assunto",
                  "Anexos", "Ficheiro", "PastaAnexos", "Contexto", "Links", "Entidade", "Projecto",
                  "ArquivadoPor", "DataArquivo", "MessageID"]
@@ -76,6 +78,28 @@ def ler_config():
         cfg = {}
     cfg.setdefault("pasta_raiz", "")
     return cfg
+
+
+def escolher_pasta(inicial=""):
+    """Diálogo nativo do Windows para escolher a pasta raiz (modo browser;
+    a janela nativa usa o diálogo do pywebview)."""
+    try:
+        import tkinter
+        from tkinter import filedialog
+    except ImportError:
+        raise EngineError("Diálogo de pastas indisponível — escreva o caminho "
+                          "manualmente.")
+    root = tkinter.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    try:
+        inicial = (inicial or "").strip().strip('"')
+        pasta = filedialog.askdirectory(
+            parent=root, title="Pasta raiz do arquivo", mustexist=True,
+            initialdir=inicial if os.path.isdir(inicial) else None)
+    finally:
+        root.destroy()
+    return os.path.normpath(pasta) if pasta else ""
 
 
 def gravar_config(pasta_raiz):
@@ -146,39 +170,64 @@ def criar_projecto(nome):
     return nome
 
 
-CONTEXTOS_PADRAO = ["Informação", "Ação necessária", "Acompanhamento",
-                    "Aprovação", "Decisão", "Reunião", "Contrato",
-                    "Faturação", "Técnico", "Urgente", "Outro"]
+CONTEXTOS_PADRAO = ["Contrato", "Faturação", "Honorários", "Emissão", "Cadastro"]
+ENTIDADES_PADRAO = ["Cliente", "Gerência"]
+
+
+def _ordem_alfabetica(valor):
+    return _sem_acentos(valor).casefold()
+
+
+def _ler_lista(nome_ficheiro, padrao):
+    """Lista partilhada (ficheiro na pasta raiz), por ordem alfabética;
+    sem ficheiro, a lista padrão."""
+    path = os.path.join(_pasta_raiz(), nome_ficheiro)
+    valores = []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            lidos = json.load(f)
+        if isinstance(lidos, list):
+            valores = [str(v).strip() for v in lidos if str(v).strip()]
+    except Exception:
+        pass
+    return sorted(valores or padrao, key=_ordem_alfabetica)
+
+
+def _gravar_lista(nome_ficheiro, valores, rotulo):
+    limpos = []
+    for valor in valores or []:
+        valor = str(valor).strip()
+        if valor and valor not in limpos:
+            limpos.append(valor)
+    if not limpos:
+        raise EngineError(f"Mantenha pelo menos {rotulo}.")
+    limpos.sort(key=_ordem_alfabetica)
+    with open(os.path.join(_pasta_raiz(), nome_ficheiro), "w", encoding="utf-8") as f:
+        json.dump(limpos, f, ensure_ascii=False, indent=2)
+    return limpos
 
 
 def ler_contextos():
-    path = os.path.join(_pasta_raiz(), CONTEXTOS_NOME)
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            valores = json.load(f)
-        if isinstance(valores, list):
-            return [str(v).strip() for v in valores if str(v).strip()]
-    except Exception:
-        pass
-    return list(CONTEXTOS_PADRAO)
+    return _ler_lista(CONTEXTOS_NOME, CONTEXTOS_PADRAO)
 
 
 def gravar_contextos(contextos):
-    valores = []
-    for contexto in contextos or []:
-        contexto = str(contexto).strip()
-        if contexto and contexto not in valores:
-            valores.append(contexto)
-    if not valores:
-        raise EngineError("Mantenha pelo menos um contexto.")
-    with open(os.path.join(_pasta_raiz(), CONTEXTOS_NOME), "w", encoding="utf-8") as f:
-        json.dump(valores, f, ensure_ascii=False, indent=2)
-    return valores
+    return _gravar_lista(CONTEXTOS_NOME, contextos, "um contexto")
 
 
 def ler_entidades():
+    return _ler_lista(ENTIDADES_NOME, ENTIDADES_PADRAO)
+
+
+def gravar_entidades(entidades):
+    return _gravar_lista(ENTIDADES_NOME, entidades, "uma entidade")
+
+
+# memória remetente → entidade: preenche automaticamente da próxima vez
+def _ler_memoria_entidades():
     try:
-        with open(os.path.join(_pasta_raiz(), ENTIDADES_NOME), "r", encoding="utf-8") as f:
+        with open(os.path.join(_pasta_raiz(), ENTIDADES_MEMORIA_NOME), "r",
+                  encoding="utf-8") as f:
             valores = json.load(f)
         return valores if isinstance(valores, dict) else {}
     except Exception:
@@ -190,17 +239,20 @@ def gravar_entidade(remetente, entidade):
     entidade = (entidade or "").strip()
     if not remetente or not entidade:
         return
-    valores = ler_entidades()
+    valores = _ler_memoria_entidades()
     valores[remetente.casefold()] = entidade
-    with open(os.path.join(_pasta_raiz(), ENTIDADES_NOME), "w", encoding="utf-8") as f:
+    with open(os.path.join(_pasta_raiz(), ENTIDADES_MEMORIA_NOME), "w",
+              encoding="utf-8") as f:
         json.dump(valores, f, ensure_ascii=False, indent=2)
 
 
 def _entidade_memorizada(item):
-    valores = ler_entidades()
+    """Entidade já atribuída a este remetente (por endereço ou por nome);
+    vazio se for a primeira vez."""
+    valores = _ler_memoria_entidades()
     nome = str(getattr(item, "SenderName", "") or "").strip().casefold()
     endereco = str(getattr(item, "SenderEmailAddress", "") or "").strip().casefold()
-    return valores.get(endereco) or valores.get(nome) or _entidade_item(item)
+    return valores.get(endereco) or valores.get(nome) or ""
 
 
 def _pasta_projecto(projecto):
@@ -301,6 +353,8 @@ def _guardar_anexos(item, pasta_projecto, nome_email):
 def _guardar_anexos_selecionados(item, pasta_projecto, nome_pasta, indices):
     anexos = getattr(item, "Attachments", None)
     indices = {int(i) for i in (indices or [])}
+    total = int(getattr(anexos, "Count", 0) or 0)
+    indices = {i for i in indices if 1 <= i <= total}
     if not indices:
         return ""
     pasta = _pasta_anexos(pasta_projecto, nome_pasta)
@@ -325,6 +379,10 @@ def _pasta_anexos(pasta_email, nome_pasta):
 
 
 def _guardar_ficheiros(ficheiros, pasta_projecto, nome_pasta):
+    if not ficheiros:
+        return ""
+    ficheiros = [ficheiro for ficheiro in ficheiros
+                 if os.path.basename(ficheiro.filename or "")]
     if not ficheiros:
         return ""
     pasta = _pasta_anexos(pasta_projecto, nome_pasta)
@@ -634,23 +692,29 @@ def _arquivar_item(item, pasta_projecto, projecto, ja_arquivados,
     links = (links or "").strip()
     if links and urlparse(links).scheme not in ("http", "https"):
         raise EngineError("O link do anexo deve começar por http:// ou https://.")
+    # Só há pasta em 01-ElementosRecebidos (e só o nome é obrigatório) quando
+    # há anexos seleccionados ou ficheiros próprios a guardar.
+    indices = {int(i) for i in (anexos_selecionados or [])} if guardar_anexos else set()
+    ficheiros = [f for f in (ficheiros or [])
+                 if os.path.basename(getattr(f, "filename", "") or "")]
+    nome_pasta = ""
+    if indices or ficheiros:
+        prefixo_data = data.strftime("%Y-%m-%d") + "_"
+        nome_pasta = re.sub(r"[\\/:*?\"<>|]", "_",
+                            (nome_pasta_anexos or "").strip()).strip(" .")
+        nome_pasta = nome_pasta.removeprefix(prefixo_data).strip(" .")
+        if not nome_pasta:
+            raise EngineError("Indique o nome da pasta dos anexos depois da data.")
+        nome_pasta = (prefixo_data + nome_pasta)[:120]
     caminho = _caminho_livre(pasta_projecto, nome)
     item.SaveAs(caminho, OL_FORMATO_MSG)
     pasta_anexos = ""
-    prefixo_data = data.strftime("%Y-%m-%d") + "_"
-    nome_pasta = nome_pasta_anexos.strip()
-    if not nome_pasta:
-        raise EngineError("Indique o nome da pasta dos anexos depois da data.")
-    nome_pasta = re.sub(r"[\\/:*?\"<>|]", "_", nome_pasta).strip(" .")[:120]
-    nome_pasta = prefixo_data + nome_pasta.removeprefix(prefixo_data)
-    if nome_pasta == prefixo_data:
-        raise EngineError("Indique o nome da pasta dos anexos depois da data.")
-    nome_pasta = re.sub(r"[\\/:*?\"<>|]", "_", nome_pasta).strip(" .")[:120]
-    if guardar_anexos:
+    if indices:
         pasta_anexos = _guardar_anexos_selecionados(
-            item, pasta_projecto, nome_pasta, anexos_selecionados)
-    pasta_anexos = _guardar_ficheiros(ficheiros or [], pasta_projecto,
-                                      nome_pasta) or pasta_anexos
+            item, pasta_projecto, nome_pasta, indices)
+    if ficheiros:
+        pasta_anexos = _guardar_ficheiros(ficheiros, pasta_projecto,
+                                          nome_pasta) or pasta_anexos
     _registar_indice(pasta_projecto, {
         "DataEmail": _fmt_data(data),
         "Remetente": remetente,
@@ -661,16 +725,14 @@ def _arquivar_item(item, pasta_projecto, projecto, ja_arquivados,
         "PastaAnexos": pasta_anexos,
         "Contexto": contexto.strip(),
         "Links": links.strip(),
-        "Entidade": (entidade or _entidade_item(item)).strip(),
+        "Entidade": entidade,
         "Projecto": projecto,
         "ArquivadoPor": os.environ.get("USERNAME", ""),
         "DataArquivo": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "MessageID": msgid,
     })
-    gravar_entidade(remetente, entidade or _entidade_item(item))
-    endereco = str(getattr(item, "SenderEmailAddress", "") or "").strip()
-    if endereco and entidade:
-        gravar_entidade(endereco, entidade)
+    gravar_entidade(remetente, entidade)
+    gravar_entidade(str(getattr(item, "SenderEmailAddress", "") or ""), entidade)
     if msgid:
         ja_arquivados.add(msgid)
     if marcar_categoria:
@@ -795,5 +857,5 @@ def abrir_caminho(caminho):
         raise EngineError("Só é possível abrir ficheiros dentro do arquivo.")
     if not os.path.exists(alvo):
         raise EngineError("O ficheiro já não existe nesse local.")
-    os.startfile(alvo)  # noqa: disponível apenas no Windows
+    subprocess.Popen(["explorer.exe", "/n,", alvo])
     return True
