@@ -34,7 +34,7 @@ NOTAS
   * O programa NAO apaga nem move nada no Outlook — grava copias .msg
     em Projecto\02-Geral\07-Email, com nome
     AAAA-MM-DD_Remetente_Assunto.msg.
-  * Os anexos ficam em Projecto\02-Geral\07-Email\Anexos. Pode
+  * Os anexos ficam em Projecto\02-Geral\01-ElementosRecebidos. Pode
     escolher quais guardar, acrescentar ficheiros e alterar o nome da
     pasta (a data do email fica sempre no inicio).
   * Os emails ja arquivados ficam com a categoria "Arquivado DEP" no

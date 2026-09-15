@@ -288,7 +288,7 @@ def _guardar_anexos(item, pasta_projecto, nome_email):
     total = int(getattr(anexos, "Count", 0) or 0)
     if not total:
         return ""
-    pasta = os.path.join(pasta_projecto, "Anexos", os.path.splitext(nome_email)[0])
+    pasta = _pasta_anexos(pasta_projecto, os.path.splitext(nome_email)[0])
     os.makedirs(pasta, exist_ok=True)
     for indice in range(1, total + 1):
         anexo = anexos.Item(indice)
@@ -303,7 +303,7 @@ def _guardar_anexos_selecionados(item, pasta_projecto, nome_pasta, indices):
     indices = {int(i) for i in (indices or [])}
     if not indices:
         return ""
-    pasta = os.path.join(pasta_projecto, "Anexos", nome_pasta)
+    pasta = _pasta_anexos(pasta_projecto, nome_pasta)
     os.makedirs(pasta, exist_ok=True)
     for indice in sorted(indices):
         if indice < 1 or indice > int(getattr(anexos, "Count", 0) or 0):
@@ -319,10 +319,15 @@ def _pasta_anexos_sugerida(data, remetente, assunto):
     return base[:100]
 
 
+def _pasta_anexos(pasta_email, nome_pasta):
+    projeto = os.path.dirname(os.path.dirname(pasta_email))
+    return os.path.join(projeto, "02-Geral", "01-ElementosRecebidos", nome_pasta)
+
+
 def _guardar_ficheiros(ficheiros, pasta_projecto, nome_pasta):
     if not ficheiros:
         return ""
-    pasta = os.path.join(pasta_projecto, "Anexos", nome_pasta)
+    pasta = _pasta_anexos(pasta_projecto, nome_pasta)
     os.makedirs(pasta, exist_ok=True)
     for ficheiro in ficheiros:
         nome = secure_filename(os.path.basename(ficheiro.filename or ""))

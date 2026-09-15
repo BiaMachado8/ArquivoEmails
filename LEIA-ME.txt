@@ -42,8 +42,9 @@ INDICE (_indice_emails.csv, um por projecto)
   * em rede, a escrita no indice repete com espera se o ficheiro
     estiver momentaneamente bloqueado (ex.: aberto no Excel de um
     colega). NAO deixar o indice aberto no Excel enquanto se arquiva.
-  * os anexos do Outlook sao copiados para a pasta Anexos do projecto; links
-    associados ficam registados para consulta posterior.
+  * os anexos do Outlook sao copiados para
+    02-Geral\01-ElementosRecebidos; os emails e o indice ficam em
+    02-Geral\07-Email. Links associados ficam registados para consulta.
 
 SALVAGUARDAS
 ------------
