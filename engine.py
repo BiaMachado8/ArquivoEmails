@@ -414,7 +414,10 @@ def _outlook():
         raise EngineError("Dependência pywin32 em falta — correr: "
                           "python -m pip install -r requirements.txt")
     try:
-        app = win32com.client.Dispatch("Outlook.Application")
+        try:
+            app = win32com.client.GetActiveObject("Outlook.Application")
+        except Exception:
+            app = win32com.client.Dispatch("Outlook.Application")
         return app.GetNamespace("MAPI")
     except Exception as e:
         raise EngineError(
@@ -578,11 +581,12 @@ def selecionar_emails(projecto=""):
     """Obtém apenas os emails atualmente selecionados no Outlook clássico."""
     ns = _outlook()
     try:
-        selection = ns.Application.ActiveExplorer().Selection
+        explorer = ns.Application.ActiveExplorer()
+        selection = explorer.Selection
     except Exception as e:
         raise EngineError("Não foi possível ler a seleção atual do Outlook. "
                           "Abra uma pasta e seleccione os emails.") from e
-    if not selection.Count:
+    if not selection or not selection.Count:
         raise EngineError("Não há emails selecionados. No Outlook, abra a lista "
                           "de uma pasta de correio e selecione os emails com "
                           "Ctrl ou Shift antes de carregar novamente.")
@@ -599,7 +603,9 @@ def selecionar_emails(projecto=""):
         except Exception:
             continue
     if not out:
-        raise EngineError("Não foram encontrados emails selecionados no Outlook.")
+        raise EngineError(f"A seleção do Outlook contém {selection.Count} item(ns), "
+                          "mas nenhum é um email. Selecione mensagens na lista "
+                          "de uma pasta de correio.")
     return {"emails": out, "varridos": len(out), "truncado": False}
 
 
